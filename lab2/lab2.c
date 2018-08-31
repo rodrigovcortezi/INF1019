@@ -135,13 +135,12 @@ int get_biggest(int *array, int n) {
 
 void exercicio3() {
     const int dimension = 4;
-    int status;
-    int shm_id, pid;
-    int v_shm_id[dimension];
     int i, j;
     int matriz[dimension][dimension];
+    int pid, status;
+    int v_shm_id[dimension];
     int *linha;
-    int **transposta;
+    int *transposta[dimension];
     for(i = 0; i < dimension; i++) {
 	for(j = 0; j < dimension; j++) {
 	    scanf("%d", &matriz[i][j]);
@@ -156,13 +155,6 @@ void exercicio3() {
 	printf("\n");
     }
 
-    shm_id = shmget(IPC_PRIVATE, dimension * sizeof(int*), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-    if(shm_id == -1) {
-	printf("Shared memory allocation error.\n");
-	exit(-1);
-    }
-
-    transposta = (int**) shmat(shm_id, NULL, 0);
     for(i = 0; i < dimension; i++) {
 	v_shm_id[i] = shmget(IPC_PRIVATE, dimension * sizeof(int), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
 	if(v_shm_id[i] == -1) {
@@ -171,6 +163,7 @@ void exercicio3() {
 	}
 	transposta[i] = (int *) shmat(v_shm_id[i], NULL, 0);
     }
+
     for(i = 0; i < dimension; i++) {
 	pid = fork();
 	if(pid == 0) {
@@ -204,11 +197,5 @@ void exercicio3() {
 	}
 	shmctl(v_shm_id[i], IPC_RMID, NULL);
     }
-
-    if(shmdt(transposta) == -1) {
-	printf("Shared memory detachment error.\n");
-	exit(-1);
-    }
-    shmctl(shm_id, IPC_RMID, NULL);
 }
 
