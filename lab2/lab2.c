@@ -10,11 +10,13 @@
 
 void exercicio1();
 void exercicio2();
+void exercicio3();
 int get_biggest(int *array, int n);
 
 int main(int argc, char *argv[]) {
 	//exercicio1();
-	exercicio2();
+	/* exercicio2(); */
+	exercicio3();
 
 	return 0;
 }
@@ -125,5 +127,88 @@ int get_biggest(int *array, int n) {
     }
 
     return biggest;
+}
+
+//
+// Exercício 3
+//
+
+void exercicio3() {
+    const int dimension = 4;
+    int status;
+    int shm_id, pid;
+    int v_shm_id[dimension];
+    int i, j;
+    int matriz[dimension][dimension];
+    int *linha;
+    int **transposta;
+    for(i = 0; i < dimension; i++) {
+	for(j = 0; j < dimension; j++) {
+	    scanf("%d", &matriz[i][j]);
+	}
+    }
+
+    printf("\nmatriz original: \n");
+    for(i = 0; i < dimension; i++) {
+	for(j = 0; j < dimension; j++) {
+	    printf("%d ", matriz[i][j]);
+	}
+	printf("\n");
+    }
+
+    shm_id = shmget(IPC_PRIVATE, dimension * sizeof(int*), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+    if(shm_id == -1) {
+	printf("Shared memory allocation error.\n");
+	exit(-1);
+    }
+
+    transposta = (int**) shmat(shm_id, NULL, 0);
+    for(i = 0; i < dimension; i++) {
+	v_shm_id[i] = shmget(IPC_PRIVATE, dimension * sizeof(int), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+	if(v_shm_id[i] == -1) {
+	    printf("Shared memory allocation error.\n");
+	    exit(-1);
+	}
+	transposta[i] = (int *) shmat(v_shm_id[i], NULL, 0);
+    }
+    for(i = 0; i < dimension; i++) {
+	pid = fork();
+	if(pid == 0) {
+	    // Child process
+	    linha = matriz[i];
+	    for(j = 0; j < dimension; j++) {
+		transposta[j][i] = linha[j];
+	    }
+	    exit(0);
+	} else if(pid < 0) {
+	    // Fork error
+	    printf("Fork error.\n");
+	    exit(-1);
+	}
+    }
+
+    while(wait(&status) > 0);
+    
+    printf("\nmatriz transposta: \n");
+    for(i = 0; i < dimension; i++) {
+	for(j = 0; j < dimension; j++) {
+	    printf("%d ", transposta[i][j]);
+	}
+	printf("\n");
+    }
+
+    for(i = 0; i < dimension; i++) {
+	if(shmdt(transposta[i]) == -1) {
+	    printf("Shared memory detatchment error.\n");
+	    exit(-1);
+	}
+	shmctl(v_shm_id[i], IPC_RMID, NULL);
+    }
+
+    if(shmdt(transposta) == -1) {
+	printf("Shared memory detachment error.\n");
+	exit(-1);
+    }
+    shmctl(shm_id, IPC_RMID, NULL);
 }
 
