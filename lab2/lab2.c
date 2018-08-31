@@ -138,7 +138,6 @@ void exercicio3() {
     int i, j;
     int matriz[dimension][dimension];
     int pid, status;
-    int v_shm_id[dimension];
     int *linha;
     int *transposta[dimension];
     for(i = 0; i < dimension; i++) {
@@ -155,17 +154,20 @@ void exercicio3() {
 	printf("\n");
     }
 
-    for(i = 0; i < dimension; i++) {
-	v_shm_id[i] = shmget(IPC_PRIVATE, dimension * sizeof(int), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
-	if(v_shm_id[i] == -1) {
-	    printf("Shared memory allocation error.\n");
-	    exit(-1);
-	}
-	transposta[i] = (int *) shmat(v_shm_id[i], NULL, 0);
-	if(*transposta[i] == -1) {
-	    printf("Shared memory attachment error.\n");
-	    exit(-1);
-	}
+    int shm_id = shmget(IPC_PRIVATE, dimension * dimension * sizeof(int), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+    if(shm_id == -1) {
+	printf("Shared memory allocation error.\n");
+	exit(-1);
+    }
+
+    transposta[0] = (int *) shmat(shm_id, NULL, 0);
+    if(*transposta[0] == -1) {
+	printf("Shared memory attachment error.\n");
+	exit(-1);
+    }
+
+    for(i = 1; i < dimension; i++) {
+	transposta[i] = transposta[i - 1] + dimension;
     }
 
     for(i = 0; i < dimension; i++) {
@@ -194,12 +196,10 @@ void exercicio3() {
 	printf("\n");
     }
 
-    for(i = 0; i < dimension; i++) {
-	if(shmdt(transposta[i]) == -1) {
-	    printf("Shared memory detatchment error.\n");
-	    exit(-1);
-	}
-	shmctl(v_shm_id[i], IPC_RMID, NULL);
+    if(shmdt(transposta[0]) == -1) {
+	printf("Shared memory detatchment error.\n");
+	exit(-1);
     }
+    shmctl(shm_id, IPC_RMID, NULL);
 }
 
