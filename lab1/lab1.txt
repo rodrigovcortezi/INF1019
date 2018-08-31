@@ -1,0 +1,208 @@
+INF1019 - Lab 1
+Nome: Rodrigo V. Cortezi
+Matricula: 1511425
+
+//
+// Exercício 1
+//
+
+void exercicio1() {
+    pid_t child_pid = fork();
+    if(child_pid != 0) {
+	// Parent process
+	printf("Parent process pid: %ld\n", getpid());
+	waitpid(child_pid, 0, 0);
+    } else if(child_pid == 0) {
+	// Child process
+	printf("Child process pid: %ld\n", getpid());
+	exit(0);
+    } else {
+	// Fork error
+	printf("Error when forking process.\n");
+	exit(-1);
+    }
+}
+
+Resultados:
+
+Parent process pid: 1412
+Child process pid: 1413
+
+Análise e conclusão:
+
+A função fork cria um novo processo, igual ao processo que fez a chamada. O processo pai
+recebe o pid do processo filho criado, e o processo filho recebe 0. Utilizando a função getpid
+podemos ver que, de fato, dois processos são criados no programa. O processo pai escreve o seu pid e
+espera o processo filho terminar. O processo filho escreve o seu pid e termina com a função exit.
+
+//
+// Exercício 2
+//
+
+void exercicio2() {
+    int i;
+    int value = 1;
+
+    pid_t child_pid = fork();
+    if(child_pid != 0) {
+	// Parent process
+	for(i = 0; i < 50; i++) {
+	    value++;
+	    printf("Value (Parent): %d\n", value);
+	}
+	waitpid(-1, 0, 0);
+    } else if(child_pid == 0) {
+	// Child process
+	for(i = 0; i < 100; i++) {
+	    value += 2;
+	    printf("Value (Child): %d\n", value);
+	}
+	exit(0);
+    } else {
+	// Fork error
+	printf("Error when forking process.\n");
+	exit(-1);
+    }
+}
+
+Resultados:
+
+...
+Value (Parent): 25
+Value (Parent): 26
+Value (Parent): 27
+Value (Child): 3
+Value (Parent): 28
+Value (Parent): 29
+Value (Parent): 30
+Value (Child): 5
+Value (Parent): 31
+Value (Child): 7
+...
+
+Análise e conclusão:
+
+Nesse segundo exercício, podemos notar que os processos criados são executados de maneira assíncrona. Isso significa
+que não existe uma ordem de execução entre os processos, havendo concorrência de processamento entre eles. A variável "value"
+é inicializada nos dois processos, porém reside em áreas distintas de memória. Isso explica porque a contabilização 
+feita em um processo(o pai adiciona 1 e o filho 2), não interfere na contabilização feita no outro.
+
+//
+// Exercício 3
+//
+
+void exercicio3() {
+    int i;
+    int value = 1;
+
+    pid_t child_pid = fork();
+    if(child_pid != 0) {
+	// Parent process
+	for(i = 0; i < 50; i++) {
+	    value++;
+	    printf("Value (Parent): %d\n", value);
+	}
+	waitpid(-1, 0, 0);
+    } else if(child_pid == 0) {
+	pid_t grandson_pid = fork();
+	if(grandson_pid != 0) {
+	    // Child process
+	    for(i = 0; i < 100; i++) {
+		value += 2;
+		printf("Value (Child): %d\n", value);
+	    }
+	    waitpid(-1, 0, 0);
+	    exit(0);
+	} else if(grandson_pid == 0) {
+	    // Grandson process
+	    for(i = 0; i < 150; i++) {
+		value += 3;
+		printf("Value (Grandson): %d\n", value);
+	    }
+	    exit(0);
+	} else {
+	    // Fork error
+	    printf("Error when forking process.\n");
+	    exit(-1);
+	}
+    } else {
+	// Fork error
+	printf("Error when forking process.\n");
+	exit(-1);
+    }
+}
+
+Resultados:
+
+...
+Value (Parent): 37
+Value (Parent): 38
+Value (Parent): 39
+Value (Child): 3
+Value (Parent): 40
+Value (Child): 5
+Value (Parent): 41
+Value (Child): 7
+Value (Grandson): 4
+Value (Parent): 42
+Value (Child): 9
+Value (Grandson): 7
+...
+
+Análise e conclusão:
+
+O mesmo comportamento notado no exercício anterior acontece aqui. Porém, nesse exercício, fica confirmado a concorrência entre os
+processos, independente da estrutura hierárquica (o processo pai, filho e neto concorrem entre si).
+
+//
+// Exercício 4
+//
+
+void exercicio4() {
+    int i, k;
+    int value = 1;
+
+    pid_t child_pid;
+    for(i = 0; i < 2; i++) {
+	child_pid = fork();
+	if(child_pid != 0) {
+	    // Parend process
+	    for(k = 0; k < 50; k++) {
+		value++;
+		printf("Value (Parent): %d\n", value);
+	    }
+	    // waitpid(-1, 0, 0; Removi a espera para que todos os três processos pudessem ser executados concorridamente.
+	} else if(child_pid == 0) {
+	    // Child process
+	    for(k = 0; k < 150; k++) {
+		value += 3;
+		printf("Value (Child%d): %d\n", i + 1, value);
+	    }
+	    exit(0);
+	} else {
+	    // Fork error
+	    printf("Error when forking process.\n");
+	    exit(-1);
+	}
+    }
+}
+
+Resultados:
+
+...
+Value (Child1): 97
+Value (Parent): 66
+Value (Child1): 100
+Value (Parent): 67
+Value (Child1): 103
+Value (Parent): 68
+Value (Child1): 106
+Value (Child2): 54
+...
+
+
+Análise e conclusões:
+
+Nesse exercício, a espera (ou não) do processo pai pelo término do processo filho fez diferença. Inicialmente usei o waitpid, mas com isso os 
+processos filhos não concorriam entre si. Isso acontecia porque o segundo processo filho só era criado depois do termino do primeiro processo filho.
+Outra coisa a se notar é o valor de "value" no inicio do segundo processo filho, que já começa com valor maior que 1. Isso acontece porque quando o segundo processo filho é criado o valor de "value" já está alterado pelo processo pai, e por isso começa com um valor diferente.
