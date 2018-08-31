@@ -162,6 +162,10 @@ void exercicio3() {
 	    exit(-1);
 	}
 	transposta[i] = (int *) shmat(v_shm_id[i], NULL, 0);
+	if(*transposta[i] == -1) {
+	    printf("Shared memory attachment error.\n");
+	    exit(-1);
+	}
     }
 
     for(i = 0; i < dimension; i++) {
