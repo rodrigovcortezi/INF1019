@@ -144,7 +144,7 @@ int get_biggest(int *array, int n) {
     return biggest;
 }
 
-Resultados:
+Resultado:
 
 23 - 83 - 119 - 111 - 16 - 89 - 8 - 106 - 46 - 71 - 78 - 2 - 97 - 109 - 115 - 77 - 107 - 124 - 90 - 20 - 27 - 117 - 83 - 81 - 118 - 13 - 125 - 48 - 30 - 99 - 40 - 100 - 86 - 56 - 89 - 97 - 54 - 33 - 116 - 28 - 87 - 3 - 60 - 94 - 64 - 50 - 58 - 45 - 115 - 114 - 23 - 70 - 97 - 26 - 17 - 20 - 84 - 12 - 105 - 107 - 76 - 46 - 54 - 79 - 54 - 110 - 105 - 58 - 117 - 53 - 38 - 121 - 88 - 37 - 42 - 41 - 28 - 48 - 24 - 97 - 46 - 28 - 109 - 19 - 28 - 46 - 87 - 86 - 4 - 95 - 37 - 92 - 74 - 54 - 62 - 93 - 111 - 98 - 117 - 45 - 102 - 41 - 12 - 12 - 124 - 119 - 103 - 4 - 69 - 124 - 50 - 28 - 58 - 49 - 10 - 107 - 127 - 56 - 23 - 98 - 62 - 36 - 116 - 48 - 60 - 51 - 65 - 56 -
 result: 127
@@ -156,4 +156,102 @@ escreverem a posição que contém o maior valor em cada divisão do vetor. O pr
 a posição que contém o maior valor nessa divisão do vetor, armazenando o resultado encontrado na memória compartilhada e termina. Quando todos os processos filhos acabam, o 
 processo pai verifica qual é o maior valor dentre os encontrados pelos processos filhos e libera a memória compartilhada.
 Isso permitiu fazer a seleção do maior valor no vetor com tempo otimizado, pois possibiliou o uso de mais de uma cpu.
+
+//
+// Exercício 3
+//
+
+void exercicio3() {
+    const int dimension = 4;
+    int i, j;
+    int matriz[dimension][dimension];
+    int pid, status;
+    int v_shm_id[dimension];
+    int *linha;
+    int *transposta[dimension];
+    for(i = 0; i < dimension; i++) {
+	for(j = 0; j < dimension; j++) {
+	    scanf("%d", &matriz[i][j]);
+	}
+    }
+
+    printf("\nmatriz original: \n");
+    for(i = 0; i < dimension; i++) {
+	for(j = 0; j < dimension; j++) {
+	    printf("%d ", matriz[i][j]);
+	}
+	printf("\n");
+    }
+
+    for(i = 0; i < dimension; i++) {
+	v_shm_id[i] = shmget(IPC_PRIVATE, dimension * sizeof(int), IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+	if(v_shm_id[i] == -1) {
+	    printf("Shared memory allocation error.\n");
+	    exit(-1);
+	}
+	transposta[i] = (int *) shmat(v_shm_id[i], NULL, 0);
+    }
+
+    for(i = 0; i < dimension; i++) {
+	pid = fork();
+	if(pid == 0) {
+	    // Child process
+	    linha = matriz[i];
+	    for(j = 0; j < dimension; j++) {
+		transposta[j][i] = linha[j];
+	    }
+	    exit(0);
+	} else if(pid < 0) {
+	    // Fork error
+	    printf("Fork error.\n");
+	    exit(-1);
+	}
+    }
+
+    while(wait(&status) > 0);
+    
+    printf("\nmatriz transposta: \n");
+    for(i = 0; i < dimension; i++) {
+	for(j = 0; j < dimension; j++) {
+	    printf("%d ", transposta[i][j]);
+	}
+	printf("\n");
+    }
+
+    for(i = 0; i < dimension; i++) {
+	if(shmdt(transposta[i]) == -1) {
+	    printf("Shared memory detatchment error.\n");
+	    exit(-1);
+	}
+	shmctl(v_shm_id[i], IPC_RMID, NULL);
+    }
+}
+
+Resultado:
+
+Entrada:
+1 2 3 4
+5 5 5 5
+3 2 2 1
+1 1 1 1
+
+matriz original: 
+1 2 3 4 
+5 5 5 5 
+3 2 2 1 
+1 1 1 1 
+
+matriz transposta: 
+1 5 3 1 
+2 5 2 1 
+3 5 2 1 
+4 5 1 1 
+
+Análise e conclusão:
+
+O processo pai cria a matriz original lendo os elementos através de entradas no teclado. Não me fez sentido alocar essa matriz em memória compartilhada,
+já que todos os outros processos iriam ter uma cópia da mesma. Depois disso, o processo pai cria um matriz na memória compartilhada para conter a matriz
+transposta. Para fazer isso, criei um vetor de ponteiros onde cada ponteiro aponta para um segmento de memória compartilhada diferente. 
+Os processos filhos são criados e cada um deles acessa a matriz original, pegando uma linha e colocando na respectiva coluna da matriz transposta (essa 
+em memória compartilhada). Depois que todos os filhos terminam, o processo pai "printa" a matriz transposta e libera a memória compartilhada alocada pela mesma.
 
