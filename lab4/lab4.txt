@@ -1,0 +1,112 @@
+INF1019 - Lab 4
+Nome: Rodrigo V. Cortezi
+Matricula: 1511425
+
+//
+// Exercício 1
+//
+
+void exercicio1() {
+    char buffer[100];
+    int fd[2];
+    int pid, status;
+
+    if(pipe(fd) < 0) {
+	printf("Error when opening pipes.\n");
+	exit(-1);
+    }
+
+    pid = fork();
+    if(pid > 0) {
+	// Parent process	
+	close(fd[1]);
+	wait(&status);
+	read(fd[0], buffer, sizeof(buffer));
+	printf("Processo pai leu: %s\n", buffer);
+	close(fd[0]);
+    } else if(pid == 0) {
+	// Child process
+	close(fd[0]);
+	strcpy(buffer, "Hello world!\n");
+	write(fd[1], buffer, sizeof(buffer));
+	printf("Processo filho escreveu: %s\n");
+	close(fd[1]);
+	exit(0);
+    } else {
+	// Fork error
+	printf("Error when forking.\n");
+	exit(-1);
+    }
+}
+
+Resultado:
+
+Hello world!
+
+Análise e conclusões:
+
+Primeiramente, o programa cria uma canal(pipe) de comunicação entre processos fazendo a chamada de pipe. Depois, o programa cria um processo filho, que escreve a
+string "Hello world!\n" no descritor aberto para escrita, o fd[1]. O processo pai, então, faz a leitura do descritor de arquivo fd[0] que contém essa string e faz um
+print.
+
+//
+// Exercício 2
+//
+
+void exercicio2() {
+    const int stdin_fd = 0;
+    const int stdout_fd = 1;
+    int fd_input, fd_output;
+    char buffer;
+    int bytes_read;
+
+    fd_input = open("entrada.txt", O_RDONLY);
+    if(fd_input == -1) {
+	printf("Error when opening input file: entrada.txt.\n");
+	exit(-1);
+    }
+
+    fd_output = open("saida.txt", O_WRONLY | O_TRUNC);
+    if(fd_output == -1) {
+	printf("Error when opening output file: saida.txt.\n");
+    }
+
+    if(dup2(fd_input, 0) == -1) {
+	printf("Error when duping input file descriptor.\n");
+	exit(-1);
+    }
+    if(dup2(fd_output, 1) == -1) {
+	printf("Error when duping output file descriptor.\n");
+	exit(-1);
+    }
+
+    do {
+	bytes_read = read(stdin_fd, &buffer, 1);
+	if(write(stdout_fd, &buffer, 1) != 1) {
+	    printf("Error when writing data to output file.\n");
+	    exit(-1);
+	}
+    } while(bytes_read > 0);
+
+    close(fd_input);
+    close(fd_output);
+}
+
+Resultado:
+
+$ cat entrada.txt
+Testando o exercício 2 do laboratório de pipes!
+
+$ cat saida.txt
+Testando o exercício 2 do laboratório de pipes!
+
+Análise e conclusões:
+
+O programa abre os arquivos entrada.txt e saida.txt através da chamada da função "open" que retorna o descritor do arquivo aberto. Depois disso,
+duplica o descritor do arquivo de entrada armazendo no descritor 0(stdin) através da função dup2 e faz o mesmo com o arquivo de saída colocando o
+novo descritor no descritor 1(stdout). Feito isso, o programa agora faz a leitura na entrada padrão e escreve os dados lidos na saída padrão.
+
+//
+// Exercício 3
+//
+
