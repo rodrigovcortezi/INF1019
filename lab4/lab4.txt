@@ -22,14 +22,13 @@ void exercicio1() {
 	close(fd[1]);
 	wait(&status);
 	read(fd[0], buffer, sizeof(buffer));
-	printf("Processo pai leu: %s\n", buffer);
+	printf("%s\n", buffer);
 	close(fd[0]);
     } else if(pid == 0) {
 	// Child process
 	close(fd[0]);
 	strcpy(buffer, "Hello world!\n");
 	write(fd[1], buffer, sizeof(buffer));
-	printf("Processo filho escreveu: %s\n");
 	close(fd[1]);
 	exit(0);
     } else {
