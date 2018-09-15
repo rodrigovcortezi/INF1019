@@ -1,0 +1,131 @@
+INF1019 - Lab 3
+Nome: Rodrigo V. Cortezi
+Matricula: 1511425
+
+//
+// Exercício 1
+//
+
+Análise e conclusões:
+
+Primeiramente, o processo pai define uma função tratadora para o sinal SIGCHLD. Ou seja, quando o processo filho termina, o
+processo pai recebe o sinal SIGCHLD e a função 'childhandler' é executada. O processo pai cria o processo filho, que por sua 
+vez roda infinitamente. O processo pai "dorme" por alguns segundos (definido na linha de comando) e mata o processo filho.
+
+Rodei o programa para analisar o resultado. De primeiro momento, o processo pai matava o processo filho depois do delay definido 
+por mim na linha de comando mas a função 'childhandeler' não era executada. Avaliei o motivo disso e pude verificar que isso 
+acontecia porque o processo pai estava terminando antes que pudesse receber o sinal. Para fazer a função handler ser executada 
+fiz o processo pai dormir por 1 segundo depois do kill do filho, para que desse tempo do filho terminar antes do pai. Nessas novas 
+condições, o processo pai mata o processo filho, recebe o sinal SIGCHLD antes de terminar e então 'childhandler' é executada.
+
+//
+// Exercício 2
+//
+
+void exercicio2(int argc, char *argv[]) {
+	int delay;
+	pid_t pid;
+
+	signal(SIGCHLD, childhandler);
+
+	if ((pid = fork()) < 0) {
+		fprintf(stderr, "Erro ao criar filho\n");
+		exit(-1);
+	}
+	if (pid == 0) { /* child */
+		execv("sleep5", NULL);
+		/* execv("sleep5", NULL); */
+	}
+	else { /* parent */
+		sscanf(argv[1], "%d", &delay); /* read delay from command line */
+		sleep(delay);
+		printf("Program %s exceeded limit of %d seconds!\n", argv[2], delay);
+		kill(pid, SIGKILL);
+	}
+}
+
+Resultados:
+
+(1. usando sleep5)
+$ ./lab 4 Lab
+indo dormir...
+Program Lab exceeded limit of 4 seconds!
+
+(2. usando sleep5)
+$ ./lab 6 Lab
+indo dormir...
+Acordei!
+Child 3893 terminated com estado 0.
+
+(3. usando sleep15)
+$ ./lab 14 Lab
+indo dormir...
+Program Lab exceeded limit of 14 seconds!
+
+(4. usando sleep15)
+$ ./lab 16 Lab
+indo dormir...
+Acordei!
+Child 3958 terminated com estado 0.
+
+Análise e conclusões:
+
+Em vez de rodar infinitamente, o processo filho agora executa o programa sleep5 e sleep15. O programa sleep5 dorme por 5
+e o programa sleep15 dorme por 15 segundos. Quando o processo pai dorme por menos tempo que o programa executado pelo filho,
+o processo filho é terminado pelo kill feito no processo pai(testes 1 e 3). Já quando o processo pai dorme por mais tempo que
+o programa executado no processo filho, o processo filho acorda, termina, o processo pai recebe o sinal SIGCHLD, executa a
+função handler terminando.
+
+
+//
+// Exercício 3
+//
+
+int time_count = 0;
+
+void exercicio3() {
+	signal(SIGUSR1, starthandler);
+	signal(SIGUSR2, endhandler);
+	for(EVER);
+}
+
+void starthandler(int signo) {
+    for(EVER) {
+	sleep(1);
+	time_count++;
+    }
+}
+
+void endhandler(int signo) {
+    int cost;
+    if(time_count < 60) {
+	cost = 2 * time_count;
+    } else {
+	cost = 120 + (time_count - 60);
+    }
+
+    printf("custo da ligação (em centavos): %d\n", cost);
+
+    exit(0);
+}
+
+Resultados:
+
+$ ./lab &
+[1] 16056
+
+$ kill -s USR1 16056
+
+(esperei 1 minuto e 30 segundos)
+
+$ kill -s USR2 16056
+custo da ligação (em centavos): 150
+
+
+Análise e conclusões:
+
+Primeiramente, defini a função 'starthandler' como sendo a função tradadora do recebimento do sinal USR1. Dessa forma, a função é executada quando o sinal USR1 é
+enviado para o processo. O objetivo dessa função será contabilizar o tempo da ligação. Fiz isso através da chamda de sleep por 1 segundo, fazendo o programa dormir por
+1 segundo e contabilizar a variável time_count dentro de um loop infinito. Já a função 'endhandler' é executada quando o programa recebe o sinal USR2. Essa função acessa o
+valor de time_count contendo o tempo(em segundos) desde que o processo recebeu o sinal USR1, faz o cálculo do custo e exibe para o usuário.
+
