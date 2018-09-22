@@ -21,30 +21,6 @@ int main()
     return 0;
 }
 
-void exercicio1() {
-    pthread_t thread1;
-    pthread_t thread2;
-
-    pthread_create(&thread1, NULL, contCrescente, NULL);
-    pthread_create(&thread2, NULL, contDecrescente, NULL);
-    pthread_join(thread1, NULL);
-    pthread_join(thread2, NULL);
-}
-
-void exercicio2() {
-    pthread_t thread1;
-    pthread_t thread2;
-
-    pthread_create(&thread1, NULL, incrementa1, NULL);
-    pthread_create(&thread2, NULL, incrementa5, NULL);
-    pthread_join(thread1, NULL);
-    pthread_join(thread2, NULL);
-}
-
-void exercicio3() {
-
-}
-
 static void *contCrescente() {
     int i;
     for(i = 1; i <= 20; i++) {
@@ -63,6 +39,16 @@ static void *contDecrescente() {
     pthread_exit(NULL);
 }
 
+void exercicio1() {
+    pthread_t thread1;
+    pthread_t thread2;
+
+    pthread_create(&thread1, NULL, contCrescente, NULL);
+    pthread_create(&thread2, NULL, contDecrescente, NULL);
+    pthread_join(thread1, NULL);
+    pthread_join(thread2, NULL);
+}
+
 static void *incrementa1() {
     global += 1;
     printf("thread1, global: %d\n", global);
@@ -74,3 +60,18 @@ static void *incrementa5() {
     printf("thread2, global: %d\n", global);
     pthread_exit(NULL);
 }
+
+void exercicio2() {
+    pthread_t thread1;
+    pthread_t thread2;
+
+    pthread_create(&thread1, NULL, incrementa1, NULL);
+    pthread_create(&thread2, NULL, incrementa5, NULL);
+    pthread_join(thread1, NULL);
+    pthread_join(thread2, NULL);
+}
+
+void exercicio3() {
+
+}
+
