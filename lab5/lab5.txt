@@ -1,0 +1,292 @@
+INF1019 - Lab 5
+Nome: Rodrigo V. Cortezi
+Matricula: 1511425
+
+//
+// Exercício 1
+//
+
+static void *contCrescente() {
+    int i;
+    for(i = 1; i <= 20; i++) {
+	printf("%d \n", i);
+	sleep(2);
+    }
+    pthread_exit(NULL);
+}
+
+static void *contDecrescente() {
+    int i;
+    for(i = 30; i >= 1; i--) {
+	printf("%d \n", i);
+	sleep(1);
+    }
+    pthread_exit(NULL);
+}
+
+void exercicio1() {
+    pthread_t thread1;
+    pthread_t thread2;
+
+    pthread_create(&thread1, NULL, contCrescente, NULL);
+    pthread_create(&thread2, NULL, contDecrescente, NULL);
+    pthread_join(thread1, NULL);
+    pthread_join(thread2, NULL);
+}
+
+Resultado:
+
+ 1
+30
+29
+28
+2
+27
+3
+26
+25
+4
+24
+23
+5
+22
+21
+6
+20
+19
+7
+18
+17
+8
+16
+15
+9
+14
+13
+10
+12
+11
+11
+10
+9
+12
+8
+7
+13
+6
+5
+14
+4
+3
+15
+2
+1
+16
+17
+18
+19
+20
+
+Análise e conclusões:
+
+O programa cria duas threads, uma que faz a contagem crescente com pausas de 2 segundos e uma que faz a contagem decrescente com pausas de 1 segundo. Atrvés desse
+exercício pude verificar que as threads são executadas simultaneamente e que cada thread possue a sua pilha, ou seja, as variáveis locais residem em áreas de memória
+distintas. Outra coisa que verifiquei é o comportamento da função sleep, que coloca para dorimir a thread que fez a chamada e não o processo, ou seja, o sleep chamado
+em uma thread não interfere na execucão das outras threads. Por final, o programa faz chamadas à função join para que o a thread principal espere as outras terminarem antes
+de terminar.
+
+//
+// Exercício 2
+//
+
+int global = 0;
+
+static void *incrementa1() {
+    global += 1;
+    printf("thread1, global: %d\n", global);
+    pthread_exit(NULL);
+}
+
+static void *incrementa5() {
+    global += 5;
+    printf("thread2, global: %d\n", global);
+    pthread_exit(NULL);
+}
+
+void exercicio2() {
+    pthread_t thread1;
+    pthread_t thread2;
+
+    pthread_create(&thread1, NULL, incrementa1, NULL);
+    pthread_create(&thread2, NULL, incrementa5, NULL);
+    pthread_join(thread1, NULL);
+    pthread_join(thread2, NULL);
+}
+
+Resultado:
+
+thread1, global: 1
+thread2, global: 6
+
+Análise e conclusões:
+
+Podemos verificar que as variáveis globais residem em uma área na memória em que as threads compartilham. Por isso que ao incrementar 5, a variável global resulta em 6.
+
+//
+// Exercício 3
+//
+
+int buffer[8];
+int length;
+int head;
+
+static void bufferInsert(int number) {
+    int i = (head + length) % 8;
+    buffer[i] = number;
+    length++;
+}
+
+static int bufferRemove() {
+    int first = buffer[head];
+    head = (head + 1) % 8;
+
+    return first;
+}
+
+static void *producer() {
+    int i = 0;
+    while(i < 64) {
+	bufferInsert(i + 1);
+	bufferInsert(i + 2);
+	bufferInsert(i + 3);
+	bufferInsert(i + 4);
+	i += 4;
+	sleep(1);
+    }
+
+    pthread_exit(NULL);
+}
+
+static void *consumer() {
+    int i = 0;
+    int k = 0;
+    int number;
+
+    sleep(2); // Para dar tempo de encher o buffer
+
+    printf("Consumi: ");
+    while(i < 64) {
+	for(k = 0; k < 8; k++) {
+	    number = bufferRemove();	    
+	    printf("%d ", number);
+	}
+	i += 8;
+	sleep(2);
+    }
+    printf("\n");
+
+    pthread_exit(NULL);
+}
+
+void exercicio3() {
+    pthread_t producerThread;
+    pthread_t consumerThread;
+
+    length = 0;
+    head = 0;
+
+    pthread_create(&producerThread, NULL, producer, NULL);
+    pthread_create(&consumerThread, NULL, consumer, NULL);
+    pthread_join(producerThread, NULL);
+    pthread_join(consumerThread, NULL);
+}
+
+Resultado:
+
+Consumi: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 25 26 27 28 22 23 24 17 25 26 27 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64
+
+Análise e conclusões:
+
+O programa cria duas threads, o produtor e o consumidor. O produtor escreve 4 numeros inteiros no buffer a cada segundo, e o o consumidor remove todos os dados do buffer
+a cada 2 segundos. Dessa forma, podemos "garantir" que o consumidor leia os dados ainda nao foram consumidos e que o produtor sobre escreva os elementos que já foram
+consumidos. Achei que faltaram ferramentas de sincronismo entre threads para garantir essa condição de corrida melhor. Fazer uso do sleep é muito pouco preciso, uma vez
+que dependemos do tempo de execução das tarefas realizadas em cada thread.
+
+//
+// Exercício 4
+//
+
+static void *frog(void *id) {
+    int currentDistance = 0;
+    int jump;
+    srand((unsigned int) time(NULL));
+    while(currentDistance < 300) {
+	jump = 1 + rand() % X;
+	printf("sapo %d pulou %d\n", *((int *)id), jump);
+	currentDistance += jump;
+	sleep(1 + rand() % Y);
+    }
+
+    printf("Sapo %d chegou ao fim da corrida.\n", *((int *)id));
+
+    pthread_exit(NULL);
+}
+
+void exercicio4() {
+    int i;
+    int ids[] = {1, 2, 3, 4, 5};
+    pthread_t threads[N];
+
+    for(i = 0; i < N; i++) {
+	pthread_create(&threads[i], NULL, frog, &ids[i]);
+    }
+
+    for(i = 0; i < N; i++) {
+	pthread_join(threads[i], NULL);
+    }
+}
+
+Resultado:
+
+sapo 3 pulou 68
+sapo 1 pulou 94
+sapo 2 pulou 94
+sapo 4 pulou 94
+sapo 5 pulou 94
+sapo 5 pulou 76
+sapo 2 pulou 18
+sapo 4 pulou 91
+sapo 3 pulou 27
+sapo 5 pulou 92
+sapo 1 pulou 63
+sapo 2 pulou 56
+sapo 2 pulou 72
+sapo 4 pulou 27
+sapo 2 pulou 14
+sapo 5 pulou 63
+sapo 3 pulou 70
+sapo 1 pulou 25
+sapo 4 pulou 63
+Sapo 5 chegou ao fim da corrida.
+sapo 3 pulou 99
+sapo 2 pulou 39
+sapo 2 pulou 4
+sapo 1 pulou 25
+sapo 4 pulou 41
+sapo 2 pulou 3
+sapo 3 pulou 48
+Sapo 4 chegou ao fim da corrida.
+Sapo 2 chegou ao fim da corrida.
+sapo 1 pulou 29
+Sapo 3 chegou ao fim da corrida.
+sapo 1 pulou 16
+sapo 1 pulou 32
+sapo 1 pulou 24
+Sapo 1 chegou ao fim da corrida.
+
+Análise e conclusões:
+
+Nesse exercício, pude verificar que podemos usar a mesma rotina em diferentes threads. Isso porque cada sapo é uma thread, mas todos são sapos e por isso crio as threads com
+a mesma rotina de iniciação. Como estão em threads separadas, eles "pulam" simultaneamente porém em ritmos diferentes. Ao passar da distância especificada, a thread do sapo
+indica que chegou ao fim da corrida.
+

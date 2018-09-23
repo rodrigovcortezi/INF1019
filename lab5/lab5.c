@@ -1,8 +1,13 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <time.h>
 
-
+#define N 5
+#define X 100
+#define Y 10
+#define D 300
 
 static void *contCrescente();
 static void *contDecrescente();
@@ -11,14 +16,15 @@ static void *incrementa5();
 void exercicio1();
 void exercicio2();
 void exercicio3();
+void exercicio4();
 
-int global = 0;
 
 int main()
 {
-    // exercicio1();
+    /*exercicio1();*/
     /*exercicio2();*/
-    exercicio3();
+    /*exercicio3();*/
+    exercicio4();
 
     return 0;
 }
@@ -50,6 +56,8 @@ void exercicio1() {
     pthread_join(thread1, NULL);
     pthread_join(thread2, NULL);
 }
+
+int global = 0;
 
 static void *incrementa1() {
     global += 1;
@@ -138,7 +146,33 @@ void exercicio3() {
     pthread_join(consumerThread, NULL);
 }
 
+static void *frog(void *id) {
+    int currentDistance = 0;
+    int jump;
+    srand((unsigned int) time(NULL));
+    while(currentDistance < 300) {
+	jump = 1 + rand() % X;
+	printf("sapo %d pulou %d\n", *((int *)id), jump);
+	currentDistance += jump;
+	sleep(1 + rand() % Y);
+    }
+
+    printf("Sapo %d chegou ao fim da corrida.\n", *((int *)id));
+
+    pthread_exit(NULL);
+}
+
 void exercicio4() {
-    
+    int i;
+    int ids[] = {1, 2, 3, 4, 5};
+    pthread_t threads[N];
+
+    for(i = 0; i < N; i++) {
+	pthread_create(&threads[i], NULL, frog, &ids[i]);
+    }
+
+    for(i = 0; i < N; i++) {
+	pthread_join(threads[i], NULL);
+    }
 }
 
