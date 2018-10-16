@@ -1,4 +1,6 @@
+#include <stdio.h>
 #include <pthread.h>
+#include <sys/sem.h>
 #include "interpreter.h"
 #include "scheduler.h"
 
@@ -11,7 +13,7 @@ void *interpreter_routine(void *arg) {
 }
 
 void *scheduler_routine(void *arg) {
-    exec();
+    exec((Scheduler *) arg);
     pthread_exit(NULL);
 }
 
@@ -23,7 +25,7 @@ int main()
     scheduler = create_scheduler();
 
     pthread_create(&interpreter_thread, NULL, interpreter_routine, scheduler);
-    pthread_create(&scheduler_thread, NULL, scheduler_routine, NULL);
+    pthread_create(&scheduler_thread, NULL, scheduler_routine, scheduler);
     pthread_join(interpreter_thread, NULL);
     pthread_join(scheduler_thread, NULL);
 

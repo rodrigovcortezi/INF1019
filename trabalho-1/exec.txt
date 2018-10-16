@@ -1,7 +1,5 @@
-exec programa1 prioridade=5
-exec programa2 prioridade=5
-exec programa3 prioridade=5
-exec programa4 prioridade=5
-exec programa5 prioridade=5
-exec programa6 prioridade=5
-exec programa7 prioridade=5
+exec sleep5 prioridade=5
+exec sleep5 prioridade=5
+exec sleep5 prioridade=5
+exec sleep5 prioridade=5
+exec sleep5 prioridade=5

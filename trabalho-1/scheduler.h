@@ -1,7 +1,7 @@
 
 typedef struct scheduler Scheduler;
 
-void exec();
+void exec(Scheduler *scheduler);
 
 Scheduler *create_scheduler();
 
