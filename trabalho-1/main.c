@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <sys/sem.h>
+#include <signal.h>
 #include "interpreter.h"
 #include "scheduler.h"
 
@@ -27,6 +28,7 @@ int main()
     pthread_create(&interpreter_thread, NULL, interpreter_routine, scheduler);
     pthread_create(&scheduler_thread, NULL, scheduler_routine, scheduler);
     pthread_join(interpreter_thread, NULL);
+    pthread_kill(scheduler_thread, SIGUSR1);
     pthread_join(scheduler_thread, NULL);
 
     return 0;

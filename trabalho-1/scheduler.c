@@ -8,6 +8,8 @@
 #include "scheduler.h"
 #include "queue.h"
 
+#define TRUE 1
+#define FALSE 0
 #define OUTPUT_FILE "saida.txt"
 #define QUANTUM 2
 
@@ -29,6 +31,8 @@ typedef struct scheduler {
 
     sem_t *semaphore;
 
+    int process_count;
+
 } Scheduler;
 
 typedef struct process {
@@ -45,26 +49,29 @@ typedef void (*pFunc) (void *);
 
 static void process_finished(int signo);
 
+static void interpreter_finished(int signal);
+
 static Process *create_process(pid_t pid, int priority);
 
 static void clean_scheduler();
 
 static void free_process(Process *process);
 
+int all_admitted = FALSE;
+
 void exec(Scheduler *scheduler) {
     Process *process;
     int i;
 
-    while(1) {
+
+    while(!(scheduler->process_count == 0 && all_admitted)) {
 	sem_wait(scheduler->semaphore);
-	printf(".\n");
 	for(i = 0; i < 7; i++) {
 	    if(scheduler->processes[i] != NULL) {
 		process = remove_element(scheduler->processes[i]);
-		printf("*\n");
 		if(process != NULL) {
-		    printf("mandei sinal SIGCONT para %d\n", process->pid);
 		    kill(process->pid, SIGCONT);
+		    scheduler->process_count -= 1;
 		}
 	    }
 	}
@@ -77,6 +84,8 @@ Scheduler *create_scheduler() {
 	printf("Dynamic memory allocation error. \n");
 	exit(-1);
     }
+
+    signal(SIGUSR1, interpreter_finished);
     
     clean_scheduler(new_scheduler);
     new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT, 0644, 0);
@@ -113,6 +122,7 @@ void add_program(Scheduler *scheduler, char *program_name, int priority) {
     }
 
     insert_element(scheduler->processes[priority-1], process);
+    scheduler->process_count += 1;
     sem_post(scheduler->semaphore);
 }
 
@@ -136,6 +146,7 @@ static void clean_scheduler(Scheduler *scheduler) {
     for(i = 0; i < 7; i++) {
 	scheduler->processes[i] = NULL;
     }
+    scheduler->process_count = 0;
 }
 
 static void free_process(Process *process) {
@@ -147,4 +158,8 @@ static void process_finished(int signo) {
 
     pid_t pid = wait(&status);
     printf("Child %d terminated\n", pid);
+}
+
+static void interpreter_finished(int signal) {
+    all_admitted = TRUE;
 }
