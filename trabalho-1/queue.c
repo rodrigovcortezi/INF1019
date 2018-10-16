@@ -63,8 +63,8 @@ void *remove_element(Queue *queue) {
 
     queue->first = first->next;
     queue->length -= 1;
-    if(queue->length == 1) {
-	queue->last = queue->first;
+    if(queue->length == 0) {
+	queue->last = NULL;
     }
 
     return first->value;
