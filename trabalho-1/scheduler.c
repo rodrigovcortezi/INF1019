@@ -5,6 +5,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/ipc.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include "scheduler.h"
 #include "queue.h"
 
