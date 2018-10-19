@@ -13,7 +13,7 @@
 #define TRUE 1
 #define FALSE 0
 #define OUTPUT_FILE "saida.txt"
-#define QUANTUM 2
+#define QUANTUM 1
 
 typedef enum state {
 
@@ -65,6 +65,8 @@ static void process_finished(int signo);
 
 static void interpreter_finished(int signal);
 
+static void alarm_handler(int signal);
+
 static Scheduler *create_scheduler();
 
 static Process *create_process(char *program_name, int priority);
@@ -79,29 +81,20 @@ void init_scheduler() {
     scheduler = create_scheduler();
     signal(SIGUSR1, interpreter_finished);
     signal(SIGCHLD, process_finished);
+    signal(SIGALRM, alarm_handler);
 }
 
 void start_scheduler() {
-    Process *process;
-    int i;
-
-    while(!(scheduler->finished_count == scheduler->admitted_count && all_admitted)) {
-	sem_wait(scheduler->semaphore);
-	for(i = 0; i < 7; i++) {
-	    process = remove_element(scheduler->processes[i]);
-	    if(process != NULL) {
-		exec_process(process);
-	    }
-	}
-    }
-    sleep(6);
+    raise(SIGALRM);
 }
 
 void add_program(char *program_name, int priority) {
     Process *process;
 
+    priority -= 1;
+
     process = create_process(program_name, priority);
-    insert_element(scheduler->processes[priority-1], process);
+    insert_element(scheduler->processes[priority], process);
     scheduler->admitted_count += 1;
     sem_post(scheduler->semaphore);
 }
@@ -144,6 +137,7 @@ static Scheduler *create_scheduler() {
 
     clean_scheduler(new_scheduler);
     new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT, 0644, 0);
+    sem_init(new_scheduler->semaphore, 0, 0);
 
     return new_scheduler;
 }
@@ -199,3 +193,47 @@ static void process_finished(int signo) {
 static void interpreter_finished(int signal) {
     all_admitted = TRUE;
 }
+
+static void alarm_handler(int signal) {
+    Process *running_process;
+    Process *next;
+    int current_priority;
+
+    printf("alarm..\n");
+
+    running_process = scheduler->running_process;
+    if(running_process != NULL) {
+	current_priority = running_process->priority;
+
+	// Parar o processo corrente
+	scheduler->running_process = NULL;
+	kill(running_process->pid, SIGSTOP);
+
+	// Realoca processo na fila adequada
+	if(current_priority < 6) {
+	    running_process->priority += 1;
+	    insert_element(scheduler->processes[current_priority+1], running_process);
+	} else {
+	    insert_element(scheduler->processes[current_priority], running_process);
+	}
+    } else {
+	current_priority = 0;
+    }
+
+    sem_wait(scheduler->semaphore);
+
+    // Executar o proximo processo
+    next = remove_element(scheduler->processes[current_priority]);
+    while(next == NULL && current_priority < 6) {
+	current_priority += 1;
+	next = remove_element(scheduler->processes[current_priority]);
+    }
+
+    if(current_priority < 6) {
+	exec_process(next);
+	printf("current_priority: %d\n", current_priority);
+	printf("alarme para %d\n", QUANTUM * (7 - current_priority));
+	alarm(QUANTUM * (7 - current_priority));
+    }
+}
+
