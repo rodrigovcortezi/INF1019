@@ -27,16 +27,6 @@ typedef enum state {
 
 } State;
 
-typedef struct scheduler {
-
-    Queue *processes[7];
-
-    sem_t *semaphore;
-
-    int process_count;
-
-} Scheduler;
-
 typedef struct process {
 
     pid_t pid;
@@ -47,13 +37,27 @@ typedef struct process {
 
 } Process;
 
-Process *running_process;
+typedef struct scheduler {
+
+    Queue *processes[7];
+
+    Process *running_process;
+
+    sem_t *semaphore;
+
+    int process_count;
+
+} Scheduler;
+
+Scheduler *scheduler;
 
 typedef void (*pFunc) (void *);
 
 static void process_finished(int signo);
 
 static void interpreter_finished(int signal);
+
+static Scheduler *create_scheduler();
 
 static Process *create_process(pid_t pid, int priority);
 
@@ -63,7 +67,13 @@ static void free_process(Process *process);
 
 int all_admitted = FALSE;
 
-void exec(Scheduler *scheduler) {
+void turn_on() {
+    scheduler = create_scheduler();
+    signal(SIGUSR1, interpreter_finished);
+    signal(SIGCHLD, process_finished);
+}
+
+void exec() {
     Process *process;
     int i;
 
@@ -73,7 +83,7 @@ void exec(Scheduler *scheduler) {
 	    if(scheduler->processes[i] != NULL) {
 		process = remove_element(scheduler->processes[i]);
 		if(process != NULL) {
-		    running_process = process;
+		    scheduler->running_process = process;
 		    kill(process->pid, SIGCONT);
 		    scheduler->process_count -= 1;
 		}
@@ -83,23 +93,7 @@ void exec(Scheduler *scheduler) {
     sleep(6);
 }
 
-Scheduler *create_scheduler() {
-    Scheduler *new_scheduler = (Scheduler *) malloc(sizeof(Scheduler));
-    if(new_scheduler == NULL) {
-	printf("Dynamic memory allocation error. \n");
-	exit(-1);
-    }
-
-    signal(SIGUSR1, interpreter_finished);
-    signal(SIGCHLD, process_finished);
-    
-    clean_scheduler(new_scheduler);
-    new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT, 0644, 0);
-
-    return new_scheduler;
-}
-
-void add_program(Scheduler *scheduler, char *program_name, int priority) {
+void add_program(char *program_name, int priority) {
     Process *process;
     pid_t pid;
 
@@ -130,6 +124,19 @@ void add_program(Scheduler *scheduler, char *program_name, int priority) {
     sem_post(scheduler->semaphore);
 }
 
+static Scheduler *create_scheduler() {
+    Scheduler *new_scheduler = (Scheduler *) malloc(sizeof(Scheduler));
+    if(new_scheduler == NULL) {
+	printf("Dynamic memory allocation error. \n");
+	exit(-1);
+    }
+
+    clean_scheduler(new_scheduler);
+    new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT, 0644, 0);
+
+    return new_scheduler;
+}
+
 static Process *create_process(pid_t pid, int priority) {
     Process *new_process = (Process *) malloc(sizeof(Process));
     if(new_process == NULL) {
@@ -151,7 +158,7 @@ static void clean_scheduler(Scheduler *scheduler) {
 	scheduler->processes[i] = NULL;
     }
     scheduler->process_count = 0;
-    running_process = NULL;
+    scheduler->running_process = NULL;
 }
 
 static void free_process(Process *process) {
@@ -160,6 +167,7 @@ static void free_process(Process *process) {
 
 static void process_finished(int signo) {
     int status;
+    Process *running_process = scheduler->running_process;
 
     if(running_process == NULL) {
 	return;

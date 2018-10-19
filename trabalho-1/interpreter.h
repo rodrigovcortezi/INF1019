@@ -1,4 +1,4 @@
 #include "scheduler.h"
 
-void init_interpreter(Scheduler *scheduler);
+void init_interpreter();
 

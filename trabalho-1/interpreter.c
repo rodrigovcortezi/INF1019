@@ -19,7 +19,7 @@ typedef struct command Command;
 static Command *read_next_command(FILE *file);
 static Command *create_command(char *program_name, int priority);
 
-void init_interpreter(Scheduler *scheduler) {
+void init_interpreter() {
     Command *command;
 
     FILE *input_file = fopen(INPUT_FILE, "r");
@@ -30,7 +30,7 @@ void init_interpreter(Scheduler *scheduler) {
 
     command = read_next_command(input_file);
     while(command != NULL) {
-	add_program(scheduler, command->program_name, command->priority);
+	add_program(command->program_name, command->priority);
 	sleep(1);
 	command = read_next_command(input_file);
     }

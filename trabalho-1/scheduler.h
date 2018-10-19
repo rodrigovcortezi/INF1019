@@ -1,9 +1,7 @@
 
-typedef struct scheduler Scheduler;
+void turn_on();
 
-void exec(Scheduler *scheduler);
+void exec();
 
-Scheduler *create_scheduler();
-
-void add_program(Scheduler *scheduler, char *program_name, int priority);
+void add_program(char *program_name, int priority);
 
