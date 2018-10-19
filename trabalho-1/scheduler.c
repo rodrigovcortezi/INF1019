@@ -47,6 +47,8 @@ typedef struct process {
 
 } Process;
 
+Process *running_process;
+
 typedef void (*pFunc) (void *);
 
 static void process_finished(int signo);
@@ -65,19 +67,20 @@ void exec(Scheduler *scheduler) {
     Process *process;
     int i;
 
-
     while(!(scheduler->process_count == 0 && all_admitted)) {
 	sem_wait(scheduler->semaphore);
 	for(i = 0; i < 7; i++) {
 	    if(scheduler->processes[i] != NULL) {
 		process = remove_element(scheduler->processes[i]);
 		if(process != NULL) {
+		    running_process = process;
 		    kill(process->pid, SIGCONT);
 		    scheduler->process_count -= 1;
 		}
 	    }
 	}
     }
+    sleep(6);
 }
 
 Scheduler *create_scheduler() {
@@ -88,6 +91,7 @@ Scheduler *create_scheduler() {
     }
 
     signal(SIGUSR1, interpreter_finished);
+    signal(SIGCHLD, process_finished);
     
     clean_scheduler(new_scheduler);
     new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT, 0644, 0);
@@ -114,9 +118,7 @@ void add_program(Scheduler *scheduler, char *program_name, int priority) {
 	exit(-1);
     }
 
-    signal(SIGCHLD, SIG_IGN);
     waitpid(pid, NULL, WUNTRACED);
-    signal(SIGCHLD, process_finished);
 
     process = create_process(pid, priority);
     if(scheduler->processes[priority-1] == NULL) {
@@ -149,6 +151,7 @@ static void clean_scheduler(Scheduler *scheduler) {
 	scheduler->processes[i] = NULL;
     }
     scheduler->process_count = 0;
+    running_process = NULL;
 }
 
 static void free_process(Process *process) {
@@ -158,8 +161,14 @@ static void free_process(Process *process) {
 static void process_finished(int signo) {
     int status;
 
-    pid_t pid = wait(&status);
-    printf("Child %d terminated\n", pid);
+    if(running_process == NULL) {
+	return;
+    }
+
+    waitpid(running_process->pid, &status, WNOHANG);
+    if(WIFEXITED(status)) {
+	printf("Child %d terminated\n", running_process->pid);
+    }
 }
 
 static void interpreter_finished(int signal) {
