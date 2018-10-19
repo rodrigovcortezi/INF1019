@@ -67,13 +67,13 @@ static void free_process(Process *process);
 
 int all_admitted = FALSE;
 
-void turn_on() {
+void init_scheduler() {
     scheduler = create_scheduler();
     signal(SIGUSR1, interpreter_finished);
     signal(SIGCHLD, process_finished);
 }
 
-void exec() {
+void start_scheduler() {
     Process *process;
     int i;
 

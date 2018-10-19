@@ -11,7 +11,7 @@ void *interpreter_routine(void *arg) {
 }
 
 void *scheduler_routine(void *arg) {
-    exec();
+    start_scheduler();
     pthread_exit(NULL);
 }
 
@@ -21,7 +21,7 @@ int main()
     pthread_t scheduler_thread;
 
     // Inicia o escalonador
-    turn_on();
+    init_scheduler();
 
     pthread_create(&interpreter_thread, NULL, interpreter_routine, NULL);
     pthread_create(&scheduler_thread, NULL, scheduler_routine, NULL);

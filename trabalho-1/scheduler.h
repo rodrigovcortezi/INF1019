@@ -1,7 +1,7 @@
 
-void turn_on();
+void init_scheduler();
 
-void exec();
+void start_scheduler();
 
 void add_program(char *program_name, int priority);
 
