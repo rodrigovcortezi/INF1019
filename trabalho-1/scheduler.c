@@ -17,6 +17,8 @@
 
 typedef enum state {
 
+    New,
+
     Ready,
 
     Running,
@@ -30,6 +32,8 @@ typedef enum state {
 typedef struct process {
 
     pid_t pid;
+
+    char *program_name;
 
     int priority;
 
@@ -55,13 +59,15 @@ Scheduler *scheduler;
 
 typedef void (*pFunc) (void *);
 
+static void exec_process(Process *process);
+
 static void process_finished(int signo);
 
 static void interpreter_finished(int signal);
 
 static Scheduler *create_scheduler();
 
-static Process *create_process(pid_t pid, int priority);
+static Process *create_process(char *program_name, int priority);
 
 static void clean_scheduler();
 
@@ -85,8 +91,7 @@ void start_scheduler() {
 	    if(scheduler->processes[i] != NULL) {
 		process = remove_element(scheduler->processes[i]);
 		if(process != NULL) {
-		    scheduler->running_process = process;
-		    kill(process->pid, SIGCONT);
+		    exec_process(process);
 		}
 	    }
 	}
@@ -96,26 +101,8 @@ void start_scheduler() {
 
 void add_program(char *program_name, int priority) {
     Process *process;
-    pid_t pid;
 
-    pid = fork();
-    if(pid == 0) {
-	// Child process
-	printf("%d\n", getpid());
-	raise(SIGSTOP);
-	if(execv(program_name, NULL) == -1) {
-	    printf("Can't exec program %s\n", program_name);
-	    exit(-1);
-	}
-    } else if(pid < 0){
-	// Fork error
-	printf("Fork error. \n");
-	exit(-1);
-    }
-
-    waitpid(pid, NULL, WUNTRACED);
-
-    process = create_process(pid, priority);
+    process = create_process(program_name, priority);
     if(scheduler->processes[priority-1] == NULL) {
 	scheduler->processes[priority-1] = create_queue((pFunc) free_process);
     }
@@ -123,6 +110,35 @@ void add_program(char *program_name, int priority) {
     insert_element(scheduler->processes[priority-1], process);
     scheduler->admitted_count += 1;
     sem_post(scheduler->semaphore);
+}
+
+static void exec_process(Process *process) {
+    pid_t pid;
+    if(process->state == New) {
+	pid = fork();
+	if(pid > 0) {
+	    // Parent process
+	    process->pid = pid;
+	    process->state = Ready;
+	} else if(pid == 0) {
+	    // Child process
+	    printf("%d\n", getpid());
+	    if(execv(process->program_name, NULL) == -1) {
+		printf("Can't exec program %s\n", process->program_name);
+		exit(-1);
+	    }
+	} else {
+	    // Fork error
+	    printf("Fork error. \n");
+	    exit(-1);
+	}
+    } else if(process->state == Ready){
+	kill(process->pid, SIGCONT);
+    } else {
+	printf("Can't execute process. Invalid state.\n");
+	exit(-1);
+    }
+    scheduler->running_process = process;
 }
 
 static Scheduler *create_scheduler() {
@@ -138,16 +154,17 @@ static Scheduler *create_scheduler() {
     return new_scheduler;
 }
 
-static Process *create_process(pid_t pid, int priority) {
+static Process *create_process(char *program_name, int priority) {
     Process *new_process = (Process *) malloc(sizeof(Process));
     if(new_process == NULL) {
 	printf("Dynamic memory allocation error. \n");
 	exit(-1);
     }
 
-    new_process->pid = pid;
+    new_process->pid = -1;
+    new_process->program_name = program_name;
     new_process->priority = priority;
-    new_process->state = Ready;
+    new_process->state = New;
 
     return new_process;
 }
