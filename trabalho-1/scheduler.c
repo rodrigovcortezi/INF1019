@@ -45,7 +45,9 @@ typedef struct scheduler {
 
     sem_t *semaphore;
 
-    int process_count;
+    int admitted_count;
+
+    int finished_count;
 
 } Scheduler;
 
@@ -77,7 +79,7 @@ void start_scheduler() {
     Process *process;
     int i;
 
-    while(!(scheduler->process_count == 0 && all_admitted)) {
+    while(!(scheduler->finished_count == scheduler->admitted_count && all_admitted)) {
 	sem_wait(scheduler->semaphore);
 	for(i = 0; i < 7; i++) {
 	    if(scheduler->processes[i] != NULL) {
@@ -85,7 +87,6 @@ void start_scheduler() {
 		if(process != NULL) {
 		    scheduler->running_process = process;
 		    kill(process->pid, SIGCONT);
-		    scheduler->process_count -= 1;
 		}
 	    }
 	}
@@ -120,7 +121,7 @@ void add_program(char *program_name, int priority) {
     }
 
     insert_element(scheduler->processes[priority-1], process);
-    scheduler->process_count += 1;
+    scheduler->admitted_count += 1;
     sem_post(scheduler->semaphore);
 }
 
@@ -157,7 +158,8 @@ static void clean_scheduler(Scheduler *scheduler) {
     for(i = 0; i < 7; i++) {
 	scheduler->processes[i] = NULL;
     }
-    scheduler->process_count = 0;
+    scheduler->admitted_count = 0;
+    scheduler->finished_count = 0;
     scheduler->running_process = NULL;
 }
 
@@ -176,6 +178,10 @@ static void process_finished(int signo) {
     waitpid(running_process->pid, &status, WNOHANG);
     if(WIFEXITED(status)) {
 	printf("Child %d terminated\n", running_process->pid);
+
+	free_process(running_process);
+	scheduler->finished_count += 1;
+	scheduler->running_process = NULL;
     }
 }
 
