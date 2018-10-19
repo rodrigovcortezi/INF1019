@@ -88,11 +88,9 @@ void start_scheduler() {
     while(!(scheduler->finished_count == scheduler->admitted_count && all_admitted)) {
 	sem_wait(scheduler->semaphore);
 	for(i = 0; i < 7; i++) {
-	    if(scheduler->processes[i] != NULL) {
-		process = remove_element(scheduler->processes[i]);
-		if(process != NULL) {
-		    exec_process(process);
-		}
+	    process = remove_element(scheduler->processes[i]);
+	    if(process != NULL) {
+		exec_process(process);
 	    }
 	}
     }
@@ -103,10 +101,6 @@ void add_program(char *program_name, int priority) {
     Process *process;
 
     process = create_process(program_name, priority);
-    if(scheduler->processes[priority-1] == NULL) {
-	scheduler->processes[priority-1] = create_queue((pFunc) free_process);
-    }
-
     insert_element(scheduler->processes[priority-1], process);
     scheduler->admitted_count += 1;
     sem_post(scheduler->semaphore);
@@ -173,7 +167,7 @@ static void clean_scheduler(Scheduler *scheduler) {
     int i;
 
     for(i = 0; i < 7; i++) {
-	scheduler->processes[i] = NULL;
+	scheduler->processes[i] = create_queue((pFunc) free_process);
     }
     scheduler->admitted_count = 0;
     scheduler->finished_count = 0;
