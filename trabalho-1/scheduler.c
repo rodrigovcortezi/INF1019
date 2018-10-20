@@ -79,7 +79,7 @@ typedef void (*pFunc) (void *);
 
 static void exec_process(Process *process);
 
-static void process_finished(int signo);
+static void process_finished(int signal);
 
 static void interpreter_finished(int signal);
 
@@ -222,7 +222,7 @@ static void free_process(Process *process) {
 /*
  * Tratamento do sinal SIGCHLD.
  */
-static void process_finished(int signo) {
+static void process_finished(int signal) {
     int status;
     Process *running_process = scheduler->running_process;
 
