@@ -48,6 +48,7 @@ Queue *insert_element(Queue *queue, void *value) {
 	queue->first = queue->last = new_element;
     } else {
 	last->next = new_element;
+	queue->last = new_element;
     }
 
     queue->length += 1;
