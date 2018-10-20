@@ -77,6 +77,9 @@ int all_admitted = FALSE;
 
 typedef void (*pFunc) (void *);
 
+// test
+static void debug();
+
 static void exec_process(Process *process);
 
 static void process_finished(int signal);
@@ -256,12 +259,15 @@ static void interpreter_finished(int signal) {
 static void alarm_handler(int signal) {
     Process *running_process;
     Process *next;
+    int priority;
     int current_priority;
 
     // Condição de parada do escalonador.
     if(scheduler->admitted_count == scheduler->finished_count && all_admitted) {
 	exit(0);
     }
+
+    printf("alarm..\n");
 
     running_process = scheduler->running_process;
     if(running_process != NULL) {
@@ -280,24 +286,42 @@ static void alarm_handler(int signal) {
 	}
 	running_process->state = Ready;
 	sem_post(scheduler->semaphore);
-    } else {
-	current_priority = 0;
     }
 
     sem_wait(scheduler->semaphore);
 
-    /* Procura um processo em estado pronto com a mesma prioridade do último processo executado. Se
-     * não hourver, procura um processo com prioridade menor na escala de prioridade. */
-    next = remove_element(scheduler->processes[current_priority]);
-    while(next == NULL && current_priority < 6) {
-	current_priority += 1;
-	next = remove_element(scheduler->processes[current_priority]);
+    priority = 0;
+    next = remove_element(scheduler->processes[priority]);
+    while(next == NULL && priority < 6) {
+	priority += 1;
+	next = remove_element(scheduler->processes[priority]);
     }
 
-    if(current_priority <= 6) {
-	printf("executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - current_priority));
+    if(next != NULL) {
+	printf("executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - priority));
 	exec_process(next);
-	alarm(QUANTUM * (7 - current_priority));
+	alarm(QUANTUM * (7 - priority));
     }
 }
 
+static void debug() {
+    Process *p;
+    Queue *new;
+    int i;
+
+    for(i = 0; i < 7; i++) {
+	printf("fila %d:", i);
+	new = create_queue((pFunc) free_process);
+
+	p = remove_element(scheduler->processes[i]);
+	while(p != NULL) {
+	    printf("%d - ", p->pid);
+	    insert_element(new, p);
+	    p = remove_element(scheduler->processes[i]);
+	}
+	printf("\n");
+
+	scheduler->processes[i] = new;
+    }
+
+}
