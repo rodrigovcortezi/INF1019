@@ -34,6 +34,7 @@ void init_interpreter() {
 	sleep(1);
 	command = read_next_command(input_file);
     }
+    fclose(input_file);
 }
 
 static Command *read_next_command(FILE *file) {
