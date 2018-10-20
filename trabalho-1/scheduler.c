@@ -137,25 +137,28 @@ static void exec_process(Process *process) {
     pid_t pid;
     if(process->state == New) {
 	pid = fork();
-	if(pid == 0) {
+	if(pid > 0) {
+	    // Parent process
+	    process->pid = pid;
+	}
+	else if(pid == 0) {
 	    // Child process
 	    printf("%d\n", getpid());
 	    if(execv(process->program_name, NULL) == -1) {
 		printf("Can't exec program %s\n", process->program_name);
 		exit(-1);
 	    }
-	} else if(pid < 0) {
+	} else {
 	    // Fork error
 	    printf("Fork error. \n");
 	    exit(-1);
 	}
-    } else if(process->state == Ready){
+    } else if(process->state == Ready) {
 	kill(process->pid, SIGCONT);
     } else {
 	printf("Can't execute process. Invalid state.\n");
 	exit(-1);
     }
-    process->pid = pid;
     process->state = Running;
     scheduler->running_process = process;
 }
