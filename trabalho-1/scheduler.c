@@ -17,45 +17,63 @@
 
 typedef enum state {
 
+    /* Processo acabou de ser admitido no escalonador. */
     New,
 
+    /* Processo está pronto para ser executado. */
     Ready,
 
+    /* Processo está sendo executado. */
     Running,
 
+    /* Processo está bloqueado por conta de I/O */
     Waiting,
 
+    /* Processo terminou. */
     Finished 
 
 } State;
 
 typedef struct process {
 
+    /* Identificação do processo. */
     pid_t pid;
 
+    /* Nome do programa a ser executado. */
     char *program_name;
 
+    /* Prioridade do processo: 0 -> 6 */
     int priority;
 
+    /* Estado do processo. */
     State state;
 
 } Process;
 
 typedef struct scheduler {
 
+    /* Filas de processos prontos para cada prioridade. */
     Queue *processes[7];
 
+    /* Processo sendo executado. */
     Process *running_process;
 
+    /* Semáforo usado para sicronizar a admissão e execução de processos no escalonador. */
     sem_t *semaphore;
 
+    /* Contador de processos admitidos no escalonador. */
     int admitted_count;
 
+    /* Contador de processos terminados no escalonador. */
     int finished_count;
 
 } Scheduler;
 
+// Variárel global armazenando o escalonador. Visível às duas as threads.
 Scheduler *scheduler;
+
+// Variável global que indica se todos os programas contidos em exec.txt foram admitidos no escalonador.
+int all_admitted = FALSE;
 
 typedef void (*pFunc) (void *);
 
@@ -75,8 +93,10 @@ static void clean_scheduler();
 
 static void free_process(Process *process);
 
-int all_admitted = FALSE;
-
+/*
+ * Inicializa o escalonador: aloca a estrutura de dados que o representa e
+ * configura o tratamento de sinais.
+ */
 void init_scheduler() {
     scheduler = create_scheduler();
     signal(SIGUSR1, interpreter_finished);
@@ -84,11 +104,17 @@ void init_scheduler() {
     signal(SIGALRM, alarm_handler);
 }
 
+/*
+ * Começa o escalonador, ou seja, inicia o escalonamento de processos.
+ */
 void start_scheduler() {
     raise(SIGALRM);
     while(TRUE);
 }
 
+/*
+ * Admite um novo programa no escalonador.
+ */
 void add_program(char *program_name, int priority) {
     Process *process;
 
@@ -100,6 +126,13 @@ void add_program(char *program_name, int priority) {
     sem_post(scheduler->semaphore);
 }
 
+/*
+ * Executa um processo. Se o processo acabou de ser admitido no
+ * escalonador e nunca foi executado antes, um novo processo é
+ * criado e substituido pelo programa a ser executado. Se o processo
+ * já foi executado antes e está em estado pronto, um sinal sigcont
+ * é enviado.
+ */
 static void exec_process(Process *process) {
     pid_t pid;
     if(process->state == New) {
@@ -127,6 +160,9 @@ static void exec_process(Process *process) {
     scheduler->running_process = process;
 }
 
+/*
+ * Aloca a estrutura de dados que representa o escalonador.
+ */
 static Scheduler *create_scheduler() {
     Scheduler *new_scheduler = (Scheduler *) malloc(sizeof(Scheduler));
     if(new_scheduler == NULL) {
@@ -141,6 +177,9 @@ static Scheduler *create_scheduler() {
     return new_scheduler;
 }
 
+/*
+ * Aloca a estrutura de dados que representa um processo.
+ */
 static Process *create_process(char *program_name, int priority) {
     Process *new_process = (Process *) malloc(sizeof(Process));
     if(new_process == NULL) {
@@ -156,6 +195,9 @@ static Process *create_process(char *program_name, int priority) {
     return new_process;
 }
 
+/*
+ * Inicializa os atributos do escalonador.
+ */
 static void clean_scheduler(Scheduler *scheduler) {
     int i;
 
@@ -167,10 +209,16 @@ static void clean_scheduler(Scheduler *scheduler) {
     scheduler->running_process = NULL;
 }
 
+/*
+ * Destrói um processo.
+ */
 static void free_process(Process *process) {
     free(process);
 }
 
+/*
+ * Tratamento do sinal SIGCHLD.
+ */
 static void process_finished(int signo) {
     int status;
     Process *running_process = scheduler->running_process;
@@ -179,7 +227,9 @@ static void process_finished(int signo) {
 	return;
     }
 
+    // flag WNOHANG: chamada waitpid é retornada imediatamente, sem espera.
     waitpid(running_process->pid, &status, WNOHANG);
+    // macro WIFEXITED: verifica se o processo terminou voluntariamente ou foi interrompido pelo sinal SIGSTOP.
     if(WIFEXITED(status)) {
 	printf("Child %d terminated\n", running_process->pid);
 
@@ -190,15 +240,22 @@ static void process_finished(int signo) {
     }
 }
 
+/*
+ * Tratamento do sinal SIGUSR1.
+ */
 static void interpreter_finished(int signal) {
     all_admitted = TRUE;
 }
 
+/*
+ * Tratamento do sinal SIGALRM.
+ */
 static void alarm_handler(int signal) {
     Process *running_process;
     Process *next;
     int current_priority;
 
+    // Condição de parada do escalonador.
     if(scheduler->admitted_count == scheduler->finished_count && all_admitted) {
 	exit(0);
     }
@@ -226,7 +283,8 @@ static void alarm_handler(int signal) {
 
     sem_wait(scheduler->semaphore);
 
-    // Executar o proximo processo
+    /* Procura um processo em estado pronto com a mesma prioridade do último processo executado. Se
+     * não hourver, procura um processo com prioridade menor na escala de prioridade. */
     next = remove_element(scheduler->processes[current_priority]);
     while(next == NULL && current_priority < 6) {
 	current_priority += 1;
