@@ -86,6 +86,7 @@ void init_scheduler() {
 
 void start_scheduler() {
     raise(SIGALRM);
+    while(TRUE);
 }
 
 void add_program(char *program_name, int priority) {
@@ -103,18 +104,14 @@ static void exec_process(Process *process) {
     pid_t pid;
     if(process->state == New) {
 	pid = fork();
-	if(pid > 0) {
-	    // Parent process
-	    process->pid = pid;
-	    process->state = Ready;
-	} else if(pid == 0) {
+	if(pid == 0) {
 	    // Child process
 	    printf("%d\n", getpid());
 	    if(execv(process->program_name, NULL) == -1) {
 		printf("Can't exec program %s\n", process->program_name);
 		exit(-1);
 	    }
-	} else {
+	} else if(pid < 0) {
 	    // Fork error
 	    printf("Fork error. \n");
 	    exit(-1);
@@ -125,6 +122,8 @@ static void exec_process(Process *process) {
 	printf("Can't execute process. Invalid state.\n");
 	exit(-1);
     }
+    process->pid = pid;
+    process->state = Running;
     scheduler->running_process = process;
 }
 
@@ -187,6 +186,7 @@ static void process_finished(int signo) {
 	free_process(running_process);
 	scheduler->finished_count += 1;
 	scheduler->running_process = NULL;
+	raise(SIGALRM);
     }
 }
 
@@ -199,7 +199,9 @@ static void alarm_handler(int signal) {
     Process *next;
     int current_priority;
 
-    printf("alarm..\n");
+    if(scheduler->admitted_count == scheduler->finished_count && all_admitted) {
+	exit(0);
+    }
 
     running_process = scheduler->running_process;
     if(running_process != NULL) {
@@ -216,6 +218,8 @@ static void alarm_handler(int signal) {
 	} else {
 	    insert_element(scheduler->processes[current_priority], running_process);
 	}
+	running_process->state = Ready;
+	sem_post(scheduler->semaphore);
     } else {
 	current_priority = 0;
     }
@@ -229,10 +233,9 @@ static void alarm_handler(int signal) {
 	next = remove_element(scheduler->processes[current_priority]);
     }
 
-    if(current_priority < 6) {
+    if(current_priority <= 6) {
+	printf("executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - current_priority));
 	exec_process(next);
-	printf("current_priority: %d\n", current_priority);
-	printf("alarme para %d\n", QUANTUM * (7 - current_priority));
 	alarm(QUANTUM * (7 - current_priority));
     }
 }

@@ -1,1 +1,2 @@
-exec sleep5 prioridade=5
+exec sleep5 prioridade=1
+exec sleep5 prioridade=1
