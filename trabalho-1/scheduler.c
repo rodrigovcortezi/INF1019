@@ -53,7 +53,7 @@ typedef struct process {
 typedef struct scheduler {
 
     /* Filas de processos prontos para cada prioridade. */
-    Queue *processes[7];
+    Queue *ready_processes[7];
 
     /* Processo sendo executado. */
     Process *running_process;
@@ -124,7 +124,7 @@ void add_program(char *program_name, int priority) {
     priority -= 1;
 
     process = create_process(program_name, priority);
-    insert_element(scheduler->processes[priority], process);
+    insert_element(scheduler->ready_processes[priority], process);
     scheduler->admitted_count += 1;
     sem_post(scheduler->semaphore);
 }
@@ -208,7 +208,7 @@ static void clean_scheduler(Scheduler *scheduler) {
     int i;
 
     for(i = 0; i < 7; i++) {
-	scheduler->processes[i] = create_queue((pFunc) free_process);
+	scheduler->ready_processes[i] = create_queue((pFunc) free_process);
     }
     scheduler->admitted_count = 0;
     scheduler->finished_count = 0;
@@ -280,9 +280,9 @@ static void alarm_handler(int signal) {
 	// Realoca processo na fila adequada
 	if(current_priority < 6) {
 	    running_process->priority += 1;
-	    insert_element(scheduler->processes[current_priority+1], running_process);
+	    insert_element(scheduler->ready_processes[current_priority+1], running_process);
 	} else {
-	    insert_element(scheduler->processes[current_priority], running_process);
+	    insert_element(scheduler->ready_processes[current_priority], running_process);
 	}
 	running_process->state = Ready;
 	sem_post(scheduler->semaphore);
@@ -291,10 +291,10 @@ static void alarm_handler(int signal) {
     sem_wait(scheduler->semaphore);
 
     priority = 0;
-    next = remove_element(scheduler->processes[priority]);
+    next = remove_element(scheduler->ready_processes[priority]);
     while(next == NULL && priority < 6) {
 	priority += 1;
-	next = remove_element(scheduler->processes[priority]);
+	next = remove_element(scheduler->ready_processes[priority]);
     }
 
     if(next != NULL) {
@@ -313,15 +313,15 @@ static void debug() {
 	printf("fila %d:", i);
 	new = create_queue((pFunc) free_process);
 
-	p = remove_element(scheduler->processes[i]);
+	p = remove_element(scheduler->ready_processes[i]);
 	while(p != NULL) {
 	    printf("%d - ", p->pid);
 	    insert_element(new, p);
-	    p = remove_element(scheduler->processes[i]);
+	    p = remove_element(scheduler->ready_processes[i]);
 	}
 	printf("\n");
 
-	scheduler->processes[i] = new;
+	scheduler->ready_processes[i] = new;
     }
 
 }
