@@ -139,6 +139,7 @@ void add_program(char *program_name, int priority) {
     process = create_process(program_name, priority);
     insert_element(scheduler->ready_processes[priority], process);
     scheduler->admitted_count += 1;
+    // Incrementa o semáforo de sincronização.
     sem_post(scheduler->semaphore);
 }
 
@@ -334,11 +335,14 @@ static void alarm_handler(int signal) {
 	    insert_element(scheduler->ready_processes[current_priority], running_process);
 	}
 	running_process->state = Ready;
+	// Incrementa o semáforo de sincronização.
 	sem_post(scheduler->semaphore);
     }
 
+    // Decrementa o semáforo de sincronização.
     sem_wait(scheduler->semaphore);
 
+    // Procura o próximo processo a ser executado: o de maior priodade.
     priority = 0;
     next = remove_element(scheduler->ready_processes[priority]);
     while(next == NULL && priority < 6) {
@@ -347,6 +351,7 @@ static void alarm_handler(int signal) {
     }
 
     if(next != NULL) {
+	// Executa o próximo processo.
 	exec_process(next);
 	register_report();
 	fprintf(scheduler->report, "Executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - priority));
