@@ -7,6 +7,7 @@
 #include <sys/ipc.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <time.h>
 #include "scheduler.h"
 #include "queue.h"
 
@@ -67,6 +68,9 @@ typedef struct scheduler {
     /* Contador de processos terminados no escalonador. */
     int finished_count;
 
+    /* Arquivo para fazer relatório da execução do escalonador. */
+    FILE *report;
+
 } Scheduler;
 
 // Variárel global armazenando o escalonador. Visível às duas as threads.
@@ -81,6 +85,8 @@ typedef void (*pFunc) (void *);
 static void debug();
 
 static void exec_process(Process *process);
+
+static void register_report();
 
 static void process_finished(int signal);
 
@@ -102,6 +108,10 @@ static void free_process(Process *process);
  */
 void init_scheduler() {
     scheduler = create_scheduler();
+
+    register_report();
+    fprintf(scheduler->report, "Esacalonador iniciado..\n");
+
     signal(SIGUSR1, interpreter_finished);
     signal(SIGCHLD, process_finished);
     signal(SIGALRM, alarm_handler);
@@ -120,6 +130,9 @@ void start_scheduler() {
  */
 void add_program(char *program_name, int priority) {
     Process *process;
+
+    register_report();
+    fprintf(scheduler->report, "Programa %s de prioridade %d admitido.\n", program_name, priority);
 
     priority -= 1;
 
@@ -146,7 +159,6 @@ static void exec_process(Process *process) {
 	}
 	else if(pid == 0) {
 	    // Child process
-	    printf("%d\n", getpid());
 	    if(execv(process->program_name, NULL) == -1) {
 		printf("Can't exec program %s\n", process->program_name);
 		exit(-1);
@@ -177,7 +189,12 @@ static Scheduler *create_scheduler() {
     }
 
     clean_scheduler(new_scheduler);
-    new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT, 0644, 0);
+    new_scheduler->report = fopen(OUTPUT_FILE, "w");
+    if(new_scheduler->report == NULL) {
+	printf("Error to open file %s.\n", OUTPUT_FILE);
+	exit(-1);
+    }
+    new_scheduler->semaphore = sem_open("/scheduler_semaphore21", O_CREAT, 0644, 0); // Remover essa linha se não estiver em um sistema MAC OSX
     sem_init(new_scheduler->semaphore, 0, 0);
 
     return new_scheduler;
@@ -223,6 +240,18 @@ static void free_process(Process *process) {
 }
 
 /*
+ * Faz um registro de tempo(hora) no relatório.
+ */
+static void register_report() {
+    time_t rawtime;
+    char *time_string;
+
+    rawtime = time(NULL);
+    time_string = ctime(&rawtime);
+    fprintf(scheduler->report, "%s |\n | ", time_string);
+}
+
+/*
  * Tratamento do sinal SIGCHLD.
  */
 static void process_finished(int signal) {
@@ -237,7 +266,8 @@ static void process_finished(int signal) {
     waitpid(running_process->pid, &status, WNOHANG);
     // macro WIFEXITED: verifica se o processo terminou voluntariamente ou foi interrompido pelo sinal SIGSTOP.
     if(WIFEXITED(status)) {
-	printf("Child %d terminated\n", running_process->pid);
+	register_report();
+	fprintf(scheduler->report, "O processo %d terminou.\n", running_process->pid);
 
 	free_process(running_process);
 	scheduler->finished_count += 1;
@@ -264,10 +294,11 @@ static void alarm_handler(int signal) {
 
     // Condição de parada do escalonador.
     if(scheduler->admitted_count == scheduler->finished_count && all_admitted) {
+	register_report();
+	fprintf(scheduler->report, "Término do escalonamento...\n");
+	fclose(scheduler->report);
 	exit(0);
     }
-
-    printf("alarm..\n");
 
     running_process = scheduler->running_process;
     if(running_process != NULL) {
@@ -298,8 +329,9 @@ static void alarm_handler(int signal) {
     }
 
     if(next != NULL) {
-	printf("executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - priority));
 	exec_process(next);
+	register_report();
+	fprintf(scheduler->report, "Executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - priority));
 	alarm(QUANTUM * (7 - priority));
     }
 }
