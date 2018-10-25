@@ -194,7 +194,18 @@ static Scheduler *create_scheduler() {
 	printf("Error to open file %s.\n", OUTPUT_FILE);
 	exit(-1);
     }
-    new_scheduler->semaphore = sem_open("/scheduler_semaphore21", O_CREAT, 0644, 0); // Remover essa linha se não estiver em um sistema MAC OSX
+
+    /* -- Remover este bloco de código em sistemas que não sejam MAC OS-- */
+
+    sem_unlink("/scheduler_semaphore");
+    new_scheduler->semaphore = sem_open("/scheduler_semaphore", O_CREAT | O_EXCL, 0644, 0);
+    if(new_scheduler->semaphore == SEM_FAILED) {
+	printf("Error to open semaphore.\n");
+	exit(-1);
+    }
+
+    /* ------------------------------------------------------------------ */
+
     sem_init(new_scheduler->semaphore, 0, 0);
 
     return new_scheduler;
@@ -297,6 +308,7 @@ static void alarm_handler(int signal) {
 	register_report();
 	fprintf(scheduler->report, "Término do escalonamento...\n");
 	fclose(scheduler->report);
+	sem_close(scheduler->semaphore);
 	exit(0);
     }
 
