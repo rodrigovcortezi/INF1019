@@ -206,7 +206,8 @@ static Scheduler *create_scheduler() {
 
     /* ------------------------------------------------------------------ */
 
-    sem_init(new_scheduler->semaphore, 0, 0);
+    // Para funcionar nas distribuições linux:
+    /*sem_init(new_scheduler->semaphore, 0, 0);*/
 
     return new_scheduler;
 }
@@ -308,7 +309,12 @@ static void alarm_handler(int signal) {
 	register_report();
 	fprintf(scheduler->report, "Término do escalonamento...\n");
 	fclose(scheduler->report);
+
+	// MAC OS:
 	sem_close(scheduler->semaphore);
+
+	// Distribuições linux:
+	/*sem_destroy(scheduler->semaphore);*/
 	exit(0);
     }
 
