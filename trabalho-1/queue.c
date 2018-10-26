@@ -18,15 +18,11 @@ typedef struct queue {
 
     int length;
 
-    void (*free_value) (void *value);
-
 } Queue;
 
 static Element *create_element(void *value);
 
-static void free_element(Queue *queue, Element *element);
-
-Queue *create_queue(void (*func)(void *)) {
+Queue *create_queue() {
     Queue *new_queue = (Queue *) malloc(sizeof(Queue));
     if(new_queue == NULL) {
 	printf("Dynamic memory allocation error. \n");
@@ -36,7 +32,6 @@ Queue *create_queue(void (*func)(void *)) {
     new_queue->first = NULL;
     new_queue->last = NULL;
     new_queue->length = 0;
-    new_queue->free_value = func;
 
     return new_queue;
 }
@@ -71,6 +66,18 @@ void *remove_element(Queue *queue) {
     return first->value;
 }
 
+void destroy_queue(Queue *queue) {
+    Element *p = queue->first;
+    Element *next;
+    while(p != NULL) {
+	next = p->next;
+	free(p);
+	p = next;
+    }
+
+    free(queue);
+}
+
 static Element *create_element(void *value) {
     Element *new_element = (Element *) malloc(sizeof(Element));
     if(new_element == NULL) {
@@ -82,10 +89,5 @@ static Element *create_element(void *value) {
     new_element->next = NULL;
 
     return new_element;
-}
-
-static void free_element(Queue *queue, Element *element) {
-    queue->free_value(element->value);
-    free(element);
 }
 

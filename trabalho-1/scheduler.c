@@ -27,11 +27,8 @@ typedef enum state {
     /* Processo está sendo executado. */
     Running,
 
-    /* Processo está bloqueado por conta de I/O */
-    Waiting,
-
-    /* Processo terminou. */
-    Finished 
+    /* Processo está bloqueado por conta de I/O. */
+    Waiting
 
 } State;
 
@@ -49,12 +46,18 @@ typedef struct process {
     /* Estado do processo. */
     State state;
 
+    /* Tempo de execução. Ou de espera no caso de estado Waiting. */
+    int timer;
+
 } Process;
 
 typedef struct scheduler {
 
     /* Filas de processos prontos para cada prioridade. */
     Queue *ready_processes[7];
+
+    /* Fila de processos bloqueados por I/O. */
+    Queue *waiting_processes;
 
     /* Processo sendo executado. */
     Process *running_process;
@@ -79,12 +82,10 @@ Scheduler *scheduler;
 // Variável global que indica se todos os programas contidos em exec.txt foram admitidos no escalonador.
 int all_admitted = FALSE;
 
-typedef void (*pFunc) (void *);
-
 // test
 static void debug();
 
-static void exec_process(Process *process);
+static void exec_next_process();
 
 static void register_report();
 
@@ -96,11 +97,15 @@ static void alarm_handler(int signal);
 
 static Scheduler *create_scheduler();
 
+static void stop_scheduler();
+
 static Process *create_process(char *program_name, int priority);
 
 static void clean_scheduler();
 
 static void free_process(Process *process);
+
+static void update_waiting_queue();
 
 /*
  * Inicializa o escalonador: aloca a estrutura de dados que o representa e
@@ -121,6 +126,7 @@ void init_scheduler() {
  * Começa o escalonador, ou seja, inicia o escalonamento de processos.
  */
 void start_scheduler() {
+    sem_wait(scheduler->semaphore);
     raise(SIGALRM);
     while(TRUE);
 }
@@ -144,39 +150,56 @@ void add_program(char *program_name, int priority) {
 }
 
 /*
- * Executa um processo. Se o processo acabou de ser admitido no
- * escalonador e nunca foi executado antes, um novo processo é
- * criado e substituido pelo programa a ser executado. Se o processo
- * já foi executado antes e está em estado pronto, um sinal sigcont
- * é enviado.
+ * Executa o próximo processo de maior prioridade. Se o processo acabou 
+ * de ser admitido no escalonador e nunca foi executado antes, um novo 
+ * processo é criado e substituido pelo programa a ser executado. Se o 
+ * processo já foi executado antes e está em estado pronto, um sinal 
+ * sigcont é enviado.
  */
-static void exec_process(Process *process) {
+static void exec_next_process() {
+    Process *process;
     pid_t pid;
-    if(process->state == New) {
-	pid = fork();
-	if(pid > 0) {
-	    // Parent process
-	    process->pid = pid;
-	}
-	else if(pid == 0) {
-	    // Child process
-	    if(execv(process->program_name, NULL) == -1) {
-		printf("Can't exec program %s\n", process->program_name);
+    int priority;
+
+    // Procura o próximo processo a ser executado: o de maior priodade.
+    priority = 0;
+    process = remove_element(scheduler->ready_processes[priority]);
+    while(process == NULL && priority < 6) {
+	priority += 1;
+	process = remove_element(scheduler->ready_processes[priority]);
+    }
+
+    if(process != NULL) {
+	// Executa o próximo processo.
+	if(process->state == New) {
+	    pid = fork();
+	    if(pid > 0) {
+		// Parent process
+		process->pid = pid;
+	    }
+	    else if(pid == 0) {
+		// Child process
+		if(execv(process->program_name, NULL) == -1) {
+		    printf("Can't exec program %s\n", process->program_name);
+		    exit(-1);
+		}
+	    } else {
+		// Fork error
+		printf("Fork error. \n");
 		exit(-1);
 	    }
+	} else if(process->state == Ready) {
+	    kill(process->pid, SIGCONT);
 	} else {
-	    // Fork error
-	    printf("Fork error. \n");
+	    printf("Can't execute process. Invalid state.\n");
 	    exit(-1);
 	}
-    } else if(process->state == Ready) {
-	kill(process->pid, SIGCONT);
-    } else {
-	printf("Can't execute process. Invalid state.\n");
-	exit(-1);
+	process->timer = QUANTUM * (7 - priority);
+	process->state = Running;
+	scheduler->running_process = process;
+	register_report();
+	fprintf(scheduler->report, "Executa o processo %d por %d segundos..\n", process->pid, QUANTUM * (7 - priority));
     }
-    process->state = Running;
-    scheduler->running_process = process;
 }
 
 /*
@@ -214,6 +237,22 @@ static Scheduler *create_scheduler() {
 }
 
 /*
+ * Pára o escalonador.
+ */
+static void stop_scheduler() {
+    register_report();
+    fprintf(scheduler->report, "Término do escalonamento...\n");
+    fclose(scheduler->report);
+
+    // MAC OS:
+    sem_close(scheduler->semaphore);
+
+    // Distribuições linux:
+    /*sem_destroy(scheduler->semaphore);*/
+    exit(0);
+}
+
+/*
  * Aloca a estrutura de dados que representa um processo.
  */
 static Process *create_process(char *program_name, int priority) {
@@ -227,6 +266,7 @@ static Process *create_process(char *program_name, int priority) {
     new_process->program_name = program_name;
     new_process->priority = priority;
     new_process->state = New;
+    new_process->timer = 0;
 
     return new_process;
 }
@@ -238,8 +278,9 @@ static void clean_scheduler(Scheduler *scheduler) {
     int i;
 
     for(i = 0; i < 7; i++) {
-	scheduler->ready_processes[i] = create_queue((pFunc) free_process);
+	scheduler->ready_processes[i] = create_queue();
     }
+    scheduler->waiting_processes = create_queue();
     scheduler->admitted_count = 0;
     scheduler->finished_count = 0;
     scheduler->running_process = NULL;
@@ -250,6 +291,34 @@ static void clean_scheduler(Scheduler *scheduler) {
  */
 static void free_process(Process *process) {
     free(process);
+}
+
+/*
+ * Atualiza a lista de processos esperando I/O, decrementando
+ * o tempo de espera e alocando os processos que terminaram a espera
+ * na fila de processos prontos.
+ */
+static void update_waiting_queue() {
+    Process *process;
+    Queue *updated = create_queue();
+    int priority;
+
+    process = remove_element(scheduler->waiting_processes);
+    while(process != NULL) {
+	process->timer -= 1;
+	if(process->timer == 0) {
+	    priority = process->priority;
+	    process->state = Ready;
+	    // 1 segundo de execução
+	    process->timer = 1;
+	    insert_element(scheduler->ready_processes[priority], process);
+	} else {
+	    insert_element(updated, process);
+	}
+	process = remove_element(scheduler->waiting_processes);
+    }
+
+    scheduler->waiting_processes = updated;
 }
 
 /*
@@ -296,67 +365,56 @@ static void interpreter_finished(int signal) {
     all_admitted = TRUE;
 }
 
-/*
- * Tratamento do sinal SIGALRM.
- */
-static void alarm_handler(int signal) {
+void alarm_handler() {
     Process *running_process;
-    Process *next;
-    int priority;
     int current_priority;
 
     // Condição de parada do escalonador.
     if(scheduler->admitted_count == scheduler->finished_count && all_admitted) {
-	register_report();
-	fprintf(scheduler->report, "Término do escalonamento...\n");
-	fclose(scheduler->report);
-
-	// MAC OS:
-	sem_close(scheduler->semaphore);
-
-	// Distribuições linux:
-	/*sem_destroy(scheduler->semaphore);*/
-	exit(0);
+	stop_scheduler();
     }
+
+    // Atualiza a fila de espera.
+    update_waiting_queue();
 
     running_process = scheduler->running_process;
     if(running_process != NULL) {
-	current_priority = running_process->priority;
+	running_process->timer -= 1;
+	if(running_process->timer == 0) {
+	    // Excedeu o tempo de execução.
+	    current_priority = running_process->priority;
 
-	// Parar o processo corrente
-	scheduler->running_process = NULL;
-	kill(running_process->pid, SIGSTOP);
+	    // Parar o processo corrente
+	    scheduler->running_process = NULL;
+	    kill(running_process->pid, SIGSTOP);
 
-	// Realoca processo na fila adequada
-	if(current_priority < 6) {
-	    running_process->priority += 1;
-	    insert_element(scheduler->ready_processes[current_priority+1], running_process);
+	    // Realoca processo na fila adequada
+	    if(current_priority < 6) {
+		running_process->priority += 1;
+		insert_element(scheduler->ready_processes[current_priority+1], running_process);
+	    } else {
+		insert_element(scheduler->ready_processes[current_priority], running_process);
+	    }
+	    running_process->state = Ready;
+	} else if(running_process->priority == 5) {
+		// I/O bound. Simula a interrupção após 1 segundo de execução. Bloqueio tem duração de 3 segundos.
+		scheduler->running_process = NULL;
+		kill(running_process->pid, SIGSTOP);
+		running_process->state = Waiting;
+		// 3 segundos de espera de I/O.
+		running_process->timer = 3;
+		insert_element(scheduler->waiting_processes, running_process);
 	} else {
-	    insert_element(scheduler->ready_processes[current_priority], running_process);
+	    // Ainda tem tempo de execução disponível. Continua executando.
+	    alarm(1);
+	    return;
 	}
-	running_process->state = Ready;
-	// Incrementa o semáforo de sincronização.
-	sem_post(scheduler->semaphore);
     }
 
-    // Decrementa o semáforo de sincronização.
-    sem_wait(scheduler->semaphore);
+    // Executa o próximo processo.
+    exec_next_process();
 
-    // Procura o próximo processo a ser executado: o de maior priodade.
-    priority = 0;
-    next = remove_element(scheduler->ready_processes[priority]);
-    while(next == NULL && priority < 6) {
-	priority += 1;
-	next = remove_element(scheduler->ready_processes[priority]);
-    }
-
-    if(next != NULL) {
-	// Executa o próximo processo.
-	exec_process(next);
-	register_report();
-	fprintf(scheduler->report, "Executa o processo %d por %d segundos..\n", next->pid, QUANTUM * (7 - priority));
-	alarm(QUANTUM * (7 - priority));
-    }
+    alarm(1);
 }
 
 static void debug() {
@@ -366,7 +424,7 @@ static void debug() {
 
     for(i = 0; i < 7; i++) {
 	printf("fila %d:", i);
-	new = create_queue((pFunc) free_process);
+	new = create_queue();
 
 	p = remove_element(scheduler->ready_processes[i]);
 	while(p != NULL) {
