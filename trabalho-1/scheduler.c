@@ -365,7 +365,7 @@ static void interpreter_finished(int signal) {
     all_admitted = TRUE;
 }
 
-void alarm_handler() {
+void alarm_handler(int signal) {
     Process *running_process;
     int current_priority;
 
