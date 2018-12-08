@@ -7,6 +7,11 @@
 #include "page.h"
 #include "util.h"
 
+#define TRUE 1
+#define FALSE 0
+
+#define TICK 50
+
 typedef enum {
 
     /* Expressa a falta de conteúdo na memória. */
@@ -59,6 +64,9 @@ struct simulator {
 
     /* Memória física. */
     MemoryContent *memory;
+
+    /* Contador de tempo. */
+    int clock;
 };
 
 
@@ -69,6 +77,8 @@ static int available_space(Simulator *sim);
 static int LRU(Simulator *sim);
 
 static int NRU(Simulator *sim);
+
+static void update_referenced_status(Simulator *sim);
 
 static List *create_list();
 
@@ -126,6 +136,8 @@ Simulator *create_simulator(char *algorithm, char *filename, int page_size, int 
 
     new->page_frames = create_list();
 
+    new->clock = 0;
+
     return new;
 }
 
@@ -156,12 +168,9 @@ void init_simulation(Simulator *sim) {
     page_bits = addr_size - displacement_bits;
 
     srand(time(NULL));
-    int i = 0;
-    while(fscanf(file, "%x %c", &address, &op) == 2 && i < 10) {
+    while(fscanf(file, "%x %c", &address, &op) == 2) {
 	page_idx = address >> displacement_bits;
 	displacement = (0xffffffff >> page_bits) & address;
-
-	printf("page: %d\ndisplacement: %d\n", page_idx, displacement);
 
 	page = sim->page_table[page_idx];
 	if(get_present(page)) {
@@ -178,19 +187,25 @@ void init_simulation(Simulator *sim) {
 	    page_out = sim->page_table[page_out_idx];
 	    page_frame = get_page_frame(page_out);
 	    deallocate_page(page_out);
-	    allocate_page(page, page_frame);
 	    list_replace(sim->page_frames, page_out_idx, page_idx);
+	    allocate_page(page, page_frame);
 	}
 
+	// Seta o bit R.
+	set_referenced(page, TRUE);
 	if(op == 'R') {
-	    set_referenced(page);
+	    // Faz a leitura.
 	    MemoryContent content = sim->memory[page_frame + displacement];
 	} else {
-	    set_modified(page);
+	    // Seta o bit M.
+	    set_modified(page, TRUE);
+	    // Faz escrita.
 	    sim->memory[page_frame + displacement] = Content;
 	}
 
-	i += 1;
+	sim->clock += 1;
+	// Percorre as páginas em memória para atualizar os bits R.
+	update_referenced_status(sim);
     }
 
     fclose(file);
@@ -267,6 +282,23 @@ static int NRU(Simulator *sim) {
     }
 
     return chosen;
+}
+
+static void update_referenced_status(Simulator *sim) {
+    List *page_frames = sim->page_frames;
+    int page_idx;
+    Page *page;
+    struct node *p = page_frames->first;
+
+    while(p != NULL) {
+	page_idx = p->page;
+	page = sim->page_table[page_idx];
+	if(sim->clock - get_last_access(page) > TICK) {
+	    set_referenced(page, FALSE);
+	}
+
+	p = p->next;
+    }
 }
 
 static List *create_list() {

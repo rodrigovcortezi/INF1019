@@ -17,6 +17,9 @@ struct page {
 
     /* Indica se a página foi referenciada. */
     int referenced;
+
+    /* Instante de último acesso. */
+    int last_access;
 };
 
 Page *create_page() {
@@ -32,21 +35,27 @@ Page *create_page() {
 void allocate_page(Page *page, int page_frame) {
     page->page_frame = page_frame;
     page->present = TRUE;
-    page->modified = FALSE;
-    page->referenced = FALSE;
 }
 
 void deallocate_page(Page *page) {
     page->page_frame = -1;
     page->present = FALSE;
+    if(page->modified) {
+	// "salva no disco" e reseta bit M.
+	page->modified = FALSE;
+    }
 }
 
-void set_modified(Page *page) {
-    page->modified = TRUE;
+void set_modified(Page *page, int modified) {
+    page->modified = modified;
 }
 
-void set_referenced(Page *page) {
-    page->referenced = TRUE;
+void set_referenced(Page *page, int referenced) {
+    page->referenced = referenced;
+}
+
+void set_last_access(Page *page, unsigned int ts) {
+    page->last_access = ts;
 }
 
 int get_page_frame(Page *page) {
@@ -63,5 +72,9 @@ int get_modified(Page *page) {
 
 int get_referenced(Page *page) {
     return page->referenced;
+}
+
+unsigned int get_last_access(Page *page) {
+    return page->last_access;
 }
 
