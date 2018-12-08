@@ -80,6 +80,10 @@ static void list_remove(List *list, int page);
 
 static void list_replace(List* list, int page, int new_page);
 
+static int list_random(List *list);
+
+static void list_destroy(List *list);
+
 
 Simulator *create_simulator(char *algorithm, char *filename, int page_size, int mem_size) {
     // Tamanho do endereço virtual em bits.
@@ -265,6 +269,31 @@ static void list_replace(List* list, int page, int new_page) {
     }
 
     p->page = new_page;
+}
+
+static int list_random(List *list) {
+    int r = rand() % get_list_size(list);
+    struct node *p = list->first;
+
+    while(r > 0) {
+	p = p->next;
+	r -= 1;
+    }
+
+    return p->page;
+}
+
+static void list_destroy(List *list) {
+    struct node *p = list->first;
+    struct node *next;
+
+    while(p != NULL) {
+	next = p->next;
+	free(p);
+	p = next;
+    }
+
+    free(list);
 }
 
 int main(int argc, char **argv)
