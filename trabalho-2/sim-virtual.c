@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
+#include <time.h>
 #include "sim-virtual.h"
 #include "page.h"
 #include "util.h"
@@ -155,6 +155,7 @@ void init_simulation(Simulator *sim) {
 
     page_bits = addr_size - displacement_bits;
 
+    srand(time(NULL));
     int i = 0;
     while(fscanf(file, "%x %c", &address, &op) == 2 && i < 10) {
 	page_idx = address >> displacement_bits;
@@ -220,7 +221,52 @@ static int LRU(Simulator *sim) {
 }
 
 static int NRU(Simulator *sim) {
+    struct node *p;
+    Page *page;
+    int i, page_idx;
+    int chosen;
+    List *page_frames = sim->page_frames;
+    List *class[4];
 
+    for(i = 0; i < 4; i++) {
+	class[i] = create_list();
+    }
+
+    p = page_frames->first;
+    while(p != NULL) {
+	page_idx = p->page;
+	page = sim->page_table[page_idx];
+	if(!(get_referenced(page) || get_modified(page))) {
+	    // não referenciada, não modificada.
+	    i = 0;
+	} else if(!get_referenced(page) && get_modified(page)) {
+	    // não referenciada, modificada.
+	    i = 1;
+	} else if(get_referenced(page) && !get_modified(page)) {
+	    // referenciada, não modificada.
+	    i = 2;
+	} else {
+	    // referenciada, modificada.
+	    i = 3;
+	}
+	list_add(class[i], page_idx);
+
+	p = p->next;
+    }
+
+    for(i = 0; i < 4; i++) {
+	if(get_list_size(class[i]) > 0) {
+	    // índice de menor classe escolhido ao acaso.
+	    chosen = list_random(class[i]);
+	    break;
+	}
+    }
+
+    for(i = 0; i < 4; i++) {
+	list_destroy(class[i]);
+    }
+
+    return chosen;
 }
 
 static List *create_list() {
