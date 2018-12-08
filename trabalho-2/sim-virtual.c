@@ -2,13 +2,260 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include "sim-virtual.h"
+#include "page.h"
 #include "util.h"
 
-#define TRUE 1
-#define FALSE 0
+typedef enum {
+
+    /* Expressa a falta de conteúdo na memória. */
+    GarbageContent,
+
+    /* Expressa o conteúdo na memória. */
+    Content
+
+} MemoryContent;
+
+struct node {
+    /* índice da página. */
+    int page;
+
+    /* Próximo nó. */
+    struct node *next;
+};
+
+typedef struct list {
+    /* Primeiro nó. */
+    struct node *first;
+
+    /* Tamanho da lista. */
+    int size;
+
+} List;
+
+struct simulator {
+
+    /* Função que realiza o algoritimo de substituição de página. */
+    int (*replacement_func)(Simulator*);
+
+    /* Arquivo de entrada. */
+    char *filename;
+
+    /* Tamanho da página em KB. */
+    int page_size;
+
+    /* Número de páginas. */
+    int page_count;
+
+    /* Tamanho total de memória em MB. */
+    int mem_size;
+
+    /* Tabela de páginas. */
+    Page **page_table;
+
+    /* Lista de quadro de páginas. */
+    List *page_frames;
+
+    /* Memória física. */
+    MemoryContent *memory;
+};
+
 
 static void validate_parameters(char *algorithm, char *filename, int page_size, int mem_size);
+
+static int available_space(Simulator *sim);
+
+static int LRU(Simulator *sim);
+
+static int NRU(Simulator *sim);
+
+static List *create_list();
+
+static int get_list_size(List *list);
+
+static void list_add(List *list, int page);
+
+static void list_remove(List *list, int page);
+
+static void list_replace(List* list, int page, int new_page);
+
+
+Simulator *create_simulator(char *algorithm, char *filename, int page_size, int mem_size) {
+    // Tamanho do endereço virtual em bits.
+    const int addr_size = 32;
+    int i, aux;
+    int displacement_bits; 
+    int page_count;
+
+    Simulator *new = (Simulator *) _malloc(sizeof(Simulator));
+
+    validate_parameters(algorithm, filename, page_size, mem_size);
+
+    if(!strcasecmp(algorithm, "LRU")) {
+	new->replacement_func = LRU;
+    } else {
+	new->replacement_func = NRU;
+    }
+
+    new->filename = filename;
+    new->page_size = page_size;
+    new->mem_size = mem_size;
+
+
+    displacement_bits = 1;
+    aux = page_size * 1000;
+    while(aux >>= 1) {
+	displacement_bits += 1;
+    }
+
+    new->page_count = 0x01 << (addr_size - displacement_bits);
+    new->page_table = (Page **) _malloc(page_count * sizeof(Page *));
+    for(i = 0; i < new->page_count; i++) {
+	new->page_table[i] = create_page();
+    }
+
+    new->memory = (MemoryContent *) _malloc(1000000 * mem_size * sizeof(Content));
+    for(i = 0; i < 1000000 * mem_size; i++) {
+	new->memory[i] = GarbageContent;
+    }
+
+    new->page_frames = create_list();
+
+    return new;
+}
+
+void init_simulation(Simulator *sim) {
+    const int addr_size = 32;
+    FILE *file;
+    int (*replacement_func)(Simulator*) = sim->replacement_func;
+    Page *page, *page_out;
+    int page_frame;
+    unsigned int address;
+    char op;
+    int displacement_bits, page_bits;
+    int displacement, page_idx;
+    int aux;
+    int page_out_idx;
+
+    file = fopen(sim->filename, "r");
+    if(file == NULL) {
+	raise_error_message("Error to open input file.\n");
+    }
+
+    displacement_bits = 1;
+    aux = sim->page_size * 1000;
+    while(aux >>= 1) {
+	displacement_bits += 1;
+    }
+
+    page_bits = addr_size - displacement_bits;
+
+    int i = 0;
+    while(fscanf(file, "%x %c", &address, &op) == 2 && i < 10) {
+	page_idx = address >> displacement_bits;
+	displacement = (0xffffffff >> page_bits) & address;
+
+	printf("page: %d\ndisplacement: %d\n", page_idx, displacement);
+
+	page = sim->page_table[page_idx];
+	if(get_present(page)) {
+	    // Página está na memória física.
+	    page_frame = get_page_frame(page);
+	} else if(available_space(sim)){
+	    // Página não está na memória física, porém há espaço para alocação.
+	    page_frame = get_list_size(sim->page_frames) * sim->page_size * 1000;
+	    list_add(sim->page_frames, page_idx);
+	    allocate_page(page, page_frame);
+	} else {
+	    // Página não está na memória física e não há espaço para alocação, sendo necessário fazer a substituição.
+	    page_out_idx = replacement_func(sim);
+	    page_out = sim->page_table[page_out_idx];
+	    page_frame = get_page_frame(page_out);
+	    deallocate_page(page_out);
+	    allocate_page(page, page_frame);
+	    list_replace(sim->page_frames, page_out_idx, page_idx);
+	}
+
+	i += 1;
+    }
+}
+
+static void validate_parameters(char *algorithm, char *filename, int page_size, int mem_size) {
+    if(strcasecmp(algorithm, "LRU") && strcasecmp(algorithm, "NRU")) {
+	raise_error_message("Invalid algorithm. Please, choose between LRU and NRU algorithms.\n");
+    }
+    if(access(filename, R_OK)) {
+	raise_error_message("Invalid file. Check file path or read permission.\n");
+    }
+    if(page_size < 8 || page_size > 32) {
+	raise_error_message("Invalid page size. Please use a size between 8 and 32 KB.\n");
+    }
+    if(mem_size < 1 || mem_size > 16) {
+	raise_error_message("Invalid memory size. Please use a size between 1 and 16 MB.\n");
+    }
+}
+
+static int available_space(Simulator *sim) {
+    // verifica se há espaço para alocar mais uma página na memória física.
+    return ((get_list_size(sim->page_frames) + 1) * sim->page_size) <= (sim->mem_size * 1000);
+}
+
+static int LRU(Simulator *sim) {
+
+}
+
+static int NRU(Simulator *sim) {
+
+}
+
+static List *create_list() {
+    List *new = _malloc(sizeof(List));
+    new->first = NULL;
+    new->size = 0;
+
+    return new;
+}
+
+static int get_list_size(List *list) {
+    return list->size;
+}
+
+static void list_add(List *list, int page) {
+    struct node *new_node = _malloc(sizeof(struct node));
+    new_node->page = page;
+    new_node->next = list->first;
+    list->first = new_node;
+    list->size += 1;
+}
+
+static void list_remove(List *list, int page) {
+    struct node *previous = NULL;
+    struct node *p = list->first;
+
+    while(p->page != page) {
+	previous = p;
+	p = p->next;
+    }
+
+    if(previous != NULL) {
+	previous->next = p->next;
+    } else {
+	list->first = p->next;
+    }
+
+    list->size -= 1;
+}
+
+static void list_replace(List* list, int page, int new_page) {
+    struct node *p = list->first;
+
+    while(p->page != page) {
+	p = p->next;
+    }
+
+    p->page = new_page;
+}
 
 int main(int argc, char **argv)
 {
@@ -27,39 +274,9 @@ int main(int argc, char **argv)
     page_size = (int) strtol(argv[3], NULL, 10);
     mem_size = (int) strtol(argv[4], NULL, 10);
 
-    init_simulation(algorithm, filename, page_size, mem_size);
+    Simulator *sim = create_simulator(algorithm, filename, page_size, mem_size);
+    init_simulation(sim);
 
     return 0;
-}
-
-void init_simulation(char *algorithm, char *filename, int page_size, int mem_size) {
-    FILE *file;
-
-    validate_parameters(algorithm, filename, page_size, mem_size);
-
-    file = fopen(filename, "r");
-    if(file == NULL) {
-	raise_error_message("Error to open file.\n");
-    }
-
-    // teste
-    printf("algorithm: %s\nfilename: %s\npage_size: %d\nmem_size: %d\n", algorithm, filename, page_size, mem_size);
-
-    fclose(file);
-}
-
-static void validate_parameters(char *algorithm, char *filename, int page_size, int mem_size) {
-    if(strcasecmp(algorithm, "LRU") && strcasecmp(algorithm, "NRU")) {
-	raise_error_message("Invalid algorithm. Please, choose between LRU and NRU algorithms.\n");
-    }
-    if(access(filename, R_OK)) {
-	raise_error_message("Invalid file. Check file path or read permission.\n");
-    }
-    if(page_size < 8 || page_size > 32) {
-	raise_error_message("Invalid page size. Please use a size between 8 and 32 KB.\n");
-    }
-    if(mem_size < 1 || mem_size > 16) {
-	raise_error_message("Invalid memory size. Please use a size between 1 and 16 MB.\n");
-    }
 }
 
