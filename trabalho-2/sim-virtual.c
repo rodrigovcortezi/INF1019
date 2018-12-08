@@ -179,6 +179,8 @@ void init_simulation(Simulator *sim) {
 
 	i += 1;
     }
+
+    fclose(file);
 }
 
 static void validate_parameters(char *algorithm, char *filename, int page_size, int mem_size) {
