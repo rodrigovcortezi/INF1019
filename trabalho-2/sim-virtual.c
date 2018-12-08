@@ -177,6 +177,14 @@ void init_simulation(Simulator *sim) {
 	    list_replace(sim->page_frames, page_out_idx, page_idx);
 	}
 
+	if(op == 'R') {
+	    set_referenced(page);
+	    MemoryContent content = sim->memory[page_frame + displacement];
+	} else {
+	    set_modified(page);
+	    sim->memory[page_frame + displacement] = Content;
+	}
+
 	i += 1;
     }
 
