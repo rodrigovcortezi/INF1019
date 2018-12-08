@@ -6,9 +6,9 @@ void allocate_page(Page *page, int page_frame);
 
 void deallocate_page(Page *page);
 
-void set_modified(Page *page, int modified);
+void set_modified(Page *page);
 
-void set_referenced(Page *page, int referenced);
+void set_referenced(Page *page);
 
 int get_page_frame(Page *page);
 

@@ -41,12 +41,12 @@ void deallocate_page(Page *page) {
     page->present = FALSE;
 }
 
-void set_modified(Page *page, int modified) {
-    page->modified = modified;
+void set_modified(Page *page) {
+    page->modified = TRUE;
 }
 
-void set_referenced(Page *page, int referenced) {
-    page->referenced = referenced;
+void set_referenced(Page *page) {
+    page->referenced = TRUE;
 }
 
 int get_page_frame(Page *page) {
