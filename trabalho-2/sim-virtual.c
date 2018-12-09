@@ -50,9 +50,6 @@ struct simulator {
     /* Tamanho da página em KB. */
     int page_size;
 
-    /* Número de páginas. */
-    unsigned int page_count;
-
     /* Tamanho total de memória em MB. */
     int mem_size;
 
@@ -100,7 +97,8 @@ Simulator *create_simulator(char *algorithm, char *filename, int page_size, int 
     const int addr_size = 32;
     int aux;
     unsigned int i;
-    int displacement_bits; 
+    int displacement_bits;
+    unsigned int page_count;
 
     Simulator *new = (Simulator *) _malloc(sizeof(Simulator));
 
@@ -123,9 +121,9 @@ Simulator *create_simulator(char *algorithm, char *filename, int page_size, int 
 	displacement_bits += 1;
     }
 
-    new->page_count = 0x01 << (addr_size - displacement_bits);
-    new->page_table = (Page **) _malloc(new->page_count * sizeof(Page *));
-    for(i = 0; i < new->page_count; i++) {
+    page_count = 0x01 << (addr_size - displacement_bits);
+    new->page_table = (Page **) _malloc(page_count * sizeof(Page *));
+    for(i = 0; i < page_count; i++) {
 	new->page_table[i] = create_page();
     }
 
