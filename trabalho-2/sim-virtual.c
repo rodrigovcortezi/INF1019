@@ -188,6 +188,10 @@ void init_simulation(Simulator *sim, int *fault_count, int *dirty_count) {
 	    page_out_idx = replacement_func(sim);
 	    page_out = sim->page_table[page_out_idx];
 	    page_frame = get_page_frame(page_out);
+	    if(get_modified(page_out)) {
+		// Precisa ser escrito no disco.
+		dirty += 1;
+	    }
 	    deallocate_page(page_out);
 	    list_replace(sim->page_frames, page_out_idx, page_idx);
 	    allocate_page(page, page_frame);
@@ -204,7 +208,6 @@ void init_simulation(Simulator *sim, int *fault_count, int *dirty_count) {
 	    set_modified(page, TRUE);
 	    // Faz escrita.
 	    sim->memory[page_frame + displacement] = Content;
-	    dirty += 1;
 	}
 
 	sim->clock += 1;
