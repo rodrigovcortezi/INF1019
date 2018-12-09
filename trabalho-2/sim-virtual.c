@@ -10,7 +10,7 @@
 #define TRUE 1
 #define FALSE 0
 
-#define TICK 50
+#define TICK 100
 
 typedef enum {
 
@@ -141,7 +141,7 @@ Simulator *create_simulator(char *algorithm, char *filename, int page_size, int 
     return new;
 }
 
-void init_simulation(Simulator *sim) {
+void init_simulation(Simulator *sim, int *fault_count, int *dirty_count) {
     const int addr_size = 32;
     FILE *file;
     unsigned int (*replacement_func)(Simulator*) = sim->replacement_func;
@@ -153,6 +153,7 @@ void init_simulation(Simulator *sim) {
     unsigned int displacement, page_idx;
     int aux;
     unsigned int page_out_idx;
+    int fault, dirty;
 
     file = fopen(sim->filename, "r");
     if(file == NULL) {
@@ -167,6 +168,8 @@ void init_simulation(Simulator *sim) {
 
     page_bits = addr_size - displacement_bits;
 
+    fault = 0;
+    dirty = 0;
     srand(time(NULL));
     while(fscanf(file, "%x %c", &address, &op) == 2) {
 	page_idx = address >> displacement_bits;
@@ -182,13 +185,14 @@ void init_simulation(Simulator *sim) {
 	    list_add(sim->page_frames, page_idx);
 	    allocate_page(page, page_frame);
 	} else {
-	    // Página não está na memória física e não há espaço para alocação, sendo necessário fazer a substituição.
+	    // Page-fault: Página não está na memória física e não há espaço para alocação, sendo necessário fazer a substituição.
 	    page_out_idx = replacement_func(sim);
 	    page_out = sim->page_table[page_out_idx];
 	    page_frame = get_page_frame(page_out);
 	    deallocate_page(page_out);
 	    list_replace(sim->page_frames, page_out_idx, page_idx);
 	    allocate_page(page, page_frame);
+	    fault += 1;
 	}
 
 	// Seta o bit R.
@@ -201,12 +205,16 @@ void init_simulation(Simulator *sim) {
 	    set_modified(page, TRUE);
 	    // Faz escrita.
 	    sim->memory[page_frame + displacement] = Content;
+	    dirty += 1;
 	}
 
 	sim->clock += 1;
 	// Percorre as páginas em memória para atualizar os bits R.
 	update_referenced_status(sim);
     }
+
+    *fault_count = fault;
+    *dirty_count = dirty;
 
     fclose(file);
 }
@@ -380,6 +388,8 @@ int main(int argc, char **argv)
     char *filename;
     int page_size;
     int mem_size;
+    int fault_count;
+    int dirty_count;
 
     if(argc != 5) {
 	char *msg = "Invalid parameters. Please specify the algorithm(1), the input file(2), the page size(3) and the memory total size(4).\n";
@@ -392,7 +402,14 @@ int main(int argc, char **argv)
     mem_size = (int) strtol(argv[4], NULL, 10);
 
     Simulator *sim = create_simulator(algorithm, filename, page_size, mem_size);
-    init_simulation(sim);
+    printf("Executando o simulador...\n");
+    init_simulation(sim, &fault_count, &dirty_count);
+    printf("Arquivo de entrada: %s\n", filename);
+    printf("Tamanho da memória física: %d MB\n", mem_size);
+    printf("Tamanho das páginas: %d KB\n", page_size);
+    printf("Alg de substituição: %s\n", algorithm);
+    printf("Número de Faltas de Páginas: %d\n", fault_count);
+    printf("Número de Páginas escritas: %d\n", dirty_count);
 
     return 0;
 }
