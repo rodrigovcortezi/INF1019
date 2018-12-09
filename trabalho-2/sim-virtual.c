@@ -66,7 +66,7 @@ struct simulator {
     MemoryContent *memory;
 
     /* Contador de tempo. */
-    int clock;
+    unsigned int clock;
 };
 
 
@@ -176,6 +176,7 @@ void init_simulation(Simulator *sim, int *fault_count, int *dirty_count) {
 	displacement = (0xffffffff >> page_bits) & address;
 
 	page = sim->page_table[page_idx];
+	set_last_access(page, sim->clock);
 	if(get_present(page)) {
 	    // Página está na memória física.
 	    page_frame = get_page_frame(page);

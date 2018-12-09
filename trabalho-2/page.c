@@ -19,7 +19,7 @@ struct page {
     int referenced;
 
     /* Instante de último acesso. */
-    int last_access;
+    unsigned int last_access;
 };
 
 Page *create_page() {
