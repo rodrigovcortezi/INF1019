@@ -7,7 +7,7 @@
 
 struct page {
     /* Índice do quadro de memória. */
-    int page_frame;
+    unsigned int page_frame;
 
     /* Indica se está presenta na memória física. */
     int present;
@@ -24,7 +24,7 @@ struct page {
 
 Page *create_page() {
     Page *new = (Page *) _malloc(sizeof(Page));
-    new->page_frame = -1;
+    new->page_frame = 0;
     new->present = FALSE;
     new->modified = FALSE;
     new->referenced = FALSE;
@@ -32,7 +32,7 @@ Page *create_page() {
     return new;
 }
 
-void allocate_page(Page *page, int page_frame) {
+void allocate_page(Page *page, unsigned int page_frame) {
     page->page_frame = page_frame;
     page->present = TRUE;
 }
@@ -58,7 +58,7 @@ void set_last_access(Page *page, unsigned int ts) {
     page->last_access = ts;
 }
 
-int get_page_frame(Page *page) {
+unsigned int get_page_frame(Page *page) {
     return page->page_frame; 
 }
 

@@ -24,7 +24,7 @@ typedef enum {
 
 struct node {
     /* índice da página. */
-    int page;
+    unsigned int page;
 
     /* Próximo nó. */
     struct node *next;
@@ -42,7 +42,7 @@ typedef struct list {
 struct simulator {
 
     /* Função que realiza o algoritimo de substituição de página. */
-    int (*replacement_func)(Simulator*);
+    unsigned int (*replacement_func)(Simulator*);
 
     /* Arquivo de entrada. */
     char *filename;
@@ -51,7 +51,7 @@ struct simulator {
     int page_size;
 
     /* Número de páginas. */
-    int page_count;
+    unsigned int page_count;
 
     /* Tamanho total de memória em MB. */
     int mem_size;
@@ -74,9 +74,9 @@ static void validate_parameters(char *algorithm, char *filename, int page_size, 
 
 static int available_space(Simulator *sim);
 
-static int LRU(Simulator *sim);
+static unsigned int LRU(Simulator *sim);
 
-static int NRU(Simulator *sim);
+static unsigned int NRU(Simulator *sim);
 
 static void update_referenced_status(Simulator *sim);
 
@@ -84,13 +84,13 @@ static List *create_list();
 
 static int get_list_size(List *list);
 
-static void list_add(List *list, int page);
+static void list_add(List *list, unsigned int page);
 
-static void list_remove(List *list, int page);
+static void list_remove(List *list, unsigned int page);
 
-static void list_replace(List* list, int page, int new_page);
+static void list_replace(List* list, unsigned int page, unsigned int new_page);
 
-static int list_random(List *list);
+static unsigned int list_random(List *list);
 
 static void list_destroy(List *list);
 
@@ -98,9 +98,9 @@ static void list_destroy(List *list);
 Simulator *create_simulator(char *algorithm, char *filename, int page_size, int mem_size) {
     // Tamanho do endereço virtual em bits.
     const int addr_size = 32;
-    int i, aux;
+    int aux;
+    unsigned int i;
     int displacement_bits; 
-    int page_count;
 
     Simulator *new = (Simulator *) _malloc(sizeof(Simulator));
 
@@ -124,7 +124,7 @@ Simulator *create_simulator(char *algorithm, char *filename, int page_size, int 
     }
 
     new->page_count = 0x01 << (addr_size - displacement_bits);
-    new->page_table = (Page **) _malloc(page_count * sizeof(Page *));
+    new->page_table = (Page **) _malloc(new->page_count * sizeof(Page *));
     for(i = 0; i < new->page_count; i++) {
 	new->page_table[i] = create_page();
     }
@@ -144,15 +144,15 @@ Simulator *create_simulator(char *algorithm, char *filename, int page_size, int 
 void init_simulation(Simulator *sim) {
     const int addr_size = 32;
     FILE *file;
-    int (*replacement_func)(Simulator*) = sim->replacement_func;
+    unsigned int (*replacement_func)(Simulator*) = sim->replacement_func;
     Page *page, *page_out;
-    int page_frame;
+    unsigned int page_frame;
     unsigned int address;
     char op;
     int displacement_bits, page_bits;
-    int displacement, page_idx;
+    unsigned int displacement, page_idx;
     int aux;
-    int page_out_idx;
+    unsigned int page_out_idx;
 
     file = fopen(sim->filename, "r");
     if(file == NULL) {
@@ -231,11 +231,11 @@ static int available_space(Simulator *sim) {
     return ((get_list_size(sim->page_frames) + 1) * sim->page_size) <= (sim->mem_size * 1000);
 }
 
-static int LRU(Simulator *sim) {
+static unsigned int LRU(Simulator *sim) {
 
 }
 
-static int NRU(Simulator *sim) {
+static unsigned int NRU(Simulator *sim) {
     struct node *p;
     Page *page;
     int i, page_idx;
@@ -313,7 +313,7 @@ static int get_list_size(List *list) {
     return list->size;
 }
 
-static void list_add(List *list, int page) {
+static void list_add(List *list, unsigned int page) {
     struct node *new_node = _malloc(sizeof(struct node));
     new_node->page = page;
     new_node->next = list->first;
@@ -321,7 +321,7 @@ static void list_add(List *list, int page) {
     list->size += 1;
 }
 
-static void list_remove(List *list, int page) {
+static void list_remove(List *list, unsigned int page) {
     struct node *previous = NULL;
     struct node *p = list->first;
 
@@ -339,7 +339,7 @@ static void list_remove(List *list, int page) {
     list->size -= 1;
 }
 
-static void list_replace(List* list, int page, int new_page) {
+static void list_replace(List* list, unsigned int page, unsigned int new_page) {
     struct node *p = list->first;
 
     while(p->page != page) {
@@ -349,7 +349,7 @@ static void list_replace(List* list, int page, int new_page) {
     p->page = new_page;
 }
 
-static int list_random(List *list) {
+static unsigned int list_random(List *list) {
     int r = rand() % get_list_size(list);
     struct node *p = list->first;
 
