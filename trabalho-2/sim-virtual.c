@@ -240,7 +240,26 @@ static int available_space(Simulator *sim) {
 }
 
 static unsigned int LRU(Simulator *sim) {
+    List *list;
+    struct node *p;
+    unsigned int page_idx, least;
+    Page *page;
 
+    list = sim->page_frames;
+    p = list->first;
+    page_idx = p->page;
+    page = sim->page_table[page_idx];
+    least = get_last_access(page);
+    p = p->next;
+    while(p != NULL) {
+	page_idx = p->page;
+	page = sim->page_table[page_idx];
+	if(get_last_access(page) < least) {
+	    least = get_last_access(page);
+	}
+    }
+
+    return least;
 }
 
 static unsigned int NRU(Simulator *sim) {
