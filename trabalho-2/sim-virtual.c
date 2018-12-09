@@ -243,21 +243,22 @@ static int available_space(Simulator *sim) {
 static unsigned int LRU(Simulator *sim) {
     List *list;
     struct node *p;
-    unsigned int page_idx, least;
-    Page *page;
+    unsigned int idx, least;
+    Page *page, *least_page;
 
     list = sim->page_frames;
     p = list->first;
-    page_idx = p->page;
-    page = sim->page_table[page_idx];
-    least = get_last_access(page);
+    least = p->page;
     p = p->next;
     while(p != NULL) {
-	page_idx = p->page;
-	page = sim->page_table[page_idx];
-	if(get_last_access(page) < least) {
-	    least = get_last_access(page);
+	idx = p->page;
+	page = sim->page_table[idx];
+	least_page = sim->page_table[least];
+	if(get_last_access(page) < get_last_access(least_page)) {
+	    least = idx;
 	}
+
+	p = p->next;
     }
 
     return least;
