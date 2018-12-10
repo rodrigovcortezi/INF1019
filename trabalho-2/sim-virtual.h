@@ -1,3 +1,8 @@
+/*
+ * Nome: Rodrigo Villardi Cortezi
+ * Matricula: 1511425
+ */
+
 typedef struct simulator Simulator;
 
 Simulator *create_simulator(char *algorithm, char *filename, int page_size, int mem_size);

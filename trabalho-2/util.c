@@ -1,3 +1,8 @@
+/*
+ * Nome: Rodrigo Villardi Cortezi
+ * Matricula: 1511425
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "util.h"
